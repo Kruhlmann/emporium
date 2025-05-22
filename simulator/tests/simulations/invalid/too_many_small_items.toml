@@ -1,0 +1,49 @@
+[player]
+health = 100
+
+[[player.cards]]
+name = "Fang"
+tier = "Bronze"
+
+[[player.cards]]
+name = "Fang"
+tier = "Bronze"
+
+[[player.cards]]
+name = "Fang"
+tier = "Bronze"
+
+[[player.cards]]
+name = "Fang"
+tier = "Bronze"
+
+[[player.cards]]
+name = "Fang"
+tier = "Bronze"
+
+[[player.cards]]
+name = "Fang"
+tier = "Bronze"
+
+[[player.cards]]
+name = "Fang"
+tier = "Bronze"
+
+[[player.cards]]
+name = "Fang"
+tier = "Bronze"
+
+[[player.cards]]
+name = "Fang"
+tier = "Bronze"
+
+[[player.cards]]
+name = "Fang"
+tier = "Bronze"
+
+[[player.cards]]
+name = "Fang"
+tier = "Bronze"
+
+[opponent]
+health = 100

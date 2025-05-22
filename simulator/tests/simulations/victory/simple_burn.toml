@@ -1,0 +1,17 @@
+[player]
+health = 50
+
+[[player.cards]]
+name = "Lighter"
+tier = "Bronze"
+
+[[player.cards]]
+name = "Lighter"
+tier = "Bronze"
+
+[opponent]
+health = 50
+
+[[opponent.cards]]
+name = "Lighter"
+tier = "Bronze"

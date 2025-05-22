@@ -1,0 +1,37 @@
+[player]
+health = 30
+
+[[player.cards]]
+name = "Trained Spider"
+tier = "Bronze"
+
+[[player.cards]]
+name = "Trained Spider"
+tier = "Bronze"
+
+[[player.cards]]
+name = "Trained Spider"
+tier = "Bronze"
+
+[[player.cards]]
+name = "Trained Spider"
+tier = "Bronze"
+
+[[player.cards]]
+name = "Trained Spider"
+tier = "Bronze"
+
+[opponent]
+health = 30
+
+[[opponent.cards]]
+name = "Fang"
+tier = "Bronze"
+
+[[opponent.cards]]
+name = "Fang"
+tier = "Bronze"
+
+[[opponent.cards]]
+name = "Fang"
+tier = "Bronze"

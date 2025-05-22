@@ -1,0 +1,3 @@
+src/*/cards/*.rs
+src/*/skills/*.rs
+src/*/encounters/**/*.rs

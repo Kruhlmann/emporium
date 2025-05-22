@@ -1,0 +1,16 @@
+[package]
+name = "simulator"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+lazy_static = "1.5.0"
+models = { path = "../models" }
+gamedata = { path = "../gamedata" }
+serde = { version = "1.0.219", features = ["derive"] }
+toml = "0.8.22"
+anyhow = "1.0.98"
+rand = "0.9.1"
+
+[dev-dependencies]
+rstest = "0.25.0"

@@ -1,0 +1,122 @@
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub enum Tag {
+    Ammo,
+    AmmoReference,
+    Apparel,
+    Aquatic,
+    Burn,
+    BurnReference,
+    Charge,
+    Cooldown,
+    Core,
+    Crit,
+    CritReference,
+    Damage,
+    DamageReference,
+    Dinosaur,
+    Dragon,
+    EconomyReference,
+    Experience,
+    Food,
+    Freeze,
+    FreezeReference,
+    Friend,
+    Gold,
+    Haste,
+    HasteReference,
+    Heal,
+    HealReference,
+    Health,
+    HealthReference,
+    Income,
+    Poison,
+    PoisonReference,
+    Potion,
+    Property,
+    Ray,
+    Reagent,
+    Regen,
+    RegenReference,
+    Relic,
+    Shield,
+    ShieldReference,
+    Slow,
+    SlowReference,
+    Tech,
+    Tool,
+    Toy,
+    Unpurchasable,
+    Value,
+    Vehicle,
+    Weapon,
+}
+
+#[derive(Debug)]
+pub struct ParseTagError(String);
+
+impl std::fmt::Display for ParseTagError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "unknown tag: {}", self.0)
+    }
+}
+
+impl std::error::Error for ParseTagError {}
+
+impl std::str::FromStr for Tag {
+    type Err = ParseTagError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_ascii_lowercase().as_str() {
+            "ammo" => Ok(Tag::Ammo),
+            "ammoreference" => Ok(Tag::AmmoReference),
+            "apparel" => Ok(Tag::Apparel),
+            "aquatic" => Ok(Tag::Aquatic),
+            "burn" => Ok(Tag::Burn),
+            "burnreference" => Ok(Tag::BurnReference),
+            "charge" => Ok(Tag::Charge),
+            "cooldown" => Ok(Tag::Cooldown),
+            "core" => Ok(Tag::Core),
+            "crit" => Ok(Tag::Crit),
+            "critreference" => Ok(Tag::CritReference),
+            "damage" => Ok(Tag::Damage),
+            "damagereference" => Ok(Tag::DamageReference),
+            "dinosaur" => Ok(Tag::Dinosaur),
+            "dragon" => Ok(Tag::Dragon),
+            "economyreference" => Ok(Tag::EconomyReference),
+            "experience" => Ok(Tag::Experience),
+            "food" => Ok(Tag::Food),
+            "freeze" => Ok(Tag::Freeze),
+            "freezereference" => Ok(Tag::FreezeReference),
+            "friend" => Ok(Tag::Friend),
+            "gold" => Ok(Tag::Gold),
+            "haste" => Ok(Tag::Haste),
+            "hastereference" => Ok(Tag::HasteReference),
+            "heal" => Ok(Tag::Heal),
+            "healreference" => Ok(Tag::HealReference),
+            "health" => Ok(Tag::Health),
+            "healthreference" => Ok(Tag::HealthReference),
+            "income" => Ok(Tag::Income),
+            "poison" => Ok(Tag::Poison),
+            "poisonreference" => Ok(Tag::PoisonReference),
+            "potion" => Ok(Tag::Potion),
+            "property" => Ok(Tag::Property),
+            "ray" => Ok(Tag::Ray),
+            "reagent" => Ok(Tag::Reagent),
+            "regen" => Ok(Tag::Regen),
+            "regenreference" => Ok(Tag::RegenReference),
+            "relic" => Ok(Tag::Relic),
+            "shield" => Ok(Tag::Shield),
+            "shieldreference" => Ok(Tag::ShieldReference),
+            "slow" => Ok(Tag::Slow),
+            "slowreference" => Ok(Tag::SlowReference),
+            "tech" => Ok(Tag::Tech),
+            "tool" => Ok(Tag::Tool),
+            "toy" => Ok(Tag::Toy),
+            "unpurchasable" => Ok(Tag::Unpurchasable),
+            "value" => Ok(Tag::Value),
+            "vehicle" => Ok(Tag::Vehicle),
+            "weapon" => Ok(Tag::Weapon),
+            other => Err(ParseTagError(other.to_string())),
+        }
+    }
+}

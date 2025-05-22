@@ -1,0 +1,13 @@
+[player]
+health = 100
+
+[[player.cards]]
+name = "Barbed Wire"
+tier = "Bronze"
+
+[opponent]
+health = 100
+
+[[opponent.cards]]
+name = "Barbed Wire"
+tier = "Silver"

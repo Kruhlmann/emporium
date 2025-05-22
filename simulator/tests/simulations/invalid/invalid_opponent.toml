@@ -1,0 +1,5 @@
+[player]
+health = 100
+
+[opponent]
+health = -1

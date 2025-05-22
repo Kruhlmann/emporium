@@ -1,0 +1,9 @@
+[player]
+health = 1
+
+[opponent]
+health = 100000
+
+[[opponent.cards]]
+name = "Fang"
+tier = "Bronze"

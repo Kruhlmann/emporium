@@ -1,0 +1,16 @@
+[package]
+name = "models"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.98"
+heck = "0.5.0"
+lazy_static = "1.5.0"
+regex = "1.11.1"
+serde = { version = "1.0.219", features = ["derive"] }
+
+[features]
+default = ["v2_0_0"]
+all = ["v2_0_0"]
+v2_0_0 = []

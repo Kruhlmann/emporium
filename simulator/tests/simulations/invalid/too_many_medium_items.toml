@@ -1,0 +1,29 @@
+[player]
+health = 100
+
+[[player.cards]]
+name = "ATM"
+tier = "Diamond"
+
+[[player.cards]]
+name = "ATM"
+tier = "Diamond"
+
+[[player.cards]]
+name = "ATM"
+tier = "Diamond"
+
+[[player.cards]]
+name = "ATM"
+tier = "Diamond"
+
+[[player.cards]]
+name = "ATM"
+tier = "Diamond"
+
+[[player.cards]]
+name = "ATM"
+tier = "Diamond"
+
+[opponent]
+health = 100
