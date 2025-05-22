@@ -1,6 +1,6 @@
 use heck::ToPascalCase;
 use models::v2_0_0::Tooltip;
-use std::path::PathBuf;
+use std::{path::PathBuf, time::Duration};
 
 use super::{JsonValue, ModuleName, StructName, tag_strlist};
 
@@ -172,9 +172,14 @@ impl CardSourceBuilder {
     }
 
     pub fn build_source_tree(&self, root: PathBuf) -> anyhow::Result<()> {
-        let cards_directory = root.join("cards");
-        std::fs::create_dir_all(&cards_directory).inspect_err(|e| {
-            println!("cargo:warning=unable to create directory {cards_directory:?} ({e})")
+        let card_directory = root.join("cards");
+        std::fs::create_dir_all(&card_directory).inspect_err(|e| {
+            println!("cargo:warning=unable to create directory {card_directory:?} ({e})")
+        })?;
+
+        let image_directory = card_directory.join("images");
+        std::fs::create_dir_all(&image_directory).inspect_err(|e| {
+            println!("cargo:warning=unable to create directory {image_directory:?} ({e})")
         })?;
 
         let cards_as_json = self.data["data"]
@@ -186,20 +191,50 @@ impl CardSourceBuilder {
             let name = json_card["name"]
                 .as_str()
                 .ok_or(anyhow::anyhow!("no name property for"))?;
-            println!("cargo:warning={name}");
             let StructName(struct_name) = StructName::card(name);
             let ModuleName(module_name) = ModuleName::card(name);
             struct_metadata.push((name.to_string(), module_name.clone(), struct_name.clone()));
             let fields: JsonCardFields = json_card
                 .try_into()
                 .inspect_err(|e| println!("cargo:warning=invalid json ({e}) {json_card:?}"))?;
+            let image_filename = format!("{}.avif", fields.id);
+            let image_path = image_directory.join(&image_filename);
+            if !std::fs::exists(&image_path).unwrap_or(false) {
+                let mut file = std::fs::File::create(&image_path)?;
+                let url = format!(
+                    "https://howbazaar-images.b-cdn.net/images/items/{}",
+                    image_filename
+                );
+                println!(
+                    "cargo:warning=image for {} not found; downloading from {url}",
+                    fields.id
+                );
+                reqwest::blocking::get(&url)?
+                    .copy_to(&mut file)
+                    .inspect_err(|error| {
+                        eprintln!("unable to set file content {image_path:?}: {error}")
+                    })
+                    .unwrap_or_else(|_| {
+                        std::fs::remove_file(&image_path).ok();
+                        0
+                    });
+                let size = file.metadata().map(|m| m.len()).unwrap_or(0);
+                if size == 0 {
+                    println!("cargo:warning=empty file created from {url} at {image_filename}");
+                    std::fs::remove_file(&image_path)?;
+                }
+
+                // Don't burn the site
+                std::thread::sleep(Duration::from_millis(100));
+            }
+
             let source = fields.to_source_code(&struct_name);
 
             let syntax_tree = syn::parse_str(&source).inspect_err(|e| {
                 println!("cargo:warning=invalid rust syntax ({e}):\n{source}");
             })?;
             let formatted = prettyplease::unparse(&syntax_tree);
-            std::fs::write(cards_directory.join(format!("{module_name}.rs")), formatted)?;
+            std::fs::write(card_directory.join(format!("{module_name}.rs")), formatted)?;
             cards_mod_rs_source.push_str(&format!(
                 "pub mod {module_name};\npub use {module_name}::{struct_name};\n"
             ));
@@ -212,7 +247,7 @@ impl CardSourceBuilder {
             cards_mod_rs_source.push_str("\n");
         }
         cards_mod_rs_source.push_str("\n    ]);\n}\n");
-        std::fs::write(cards_directory.join("mod.rs"), cards_mod_rs_source)?;
+        std::fs::write(card_directory.join("mod.rs"), cards_mod_rs_source)?;
         Ok(())
     }
 }

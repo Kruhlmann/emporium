@@ -1,3 +1,4 @@
 src/*/cards/*.rs
 src/*/skills/*.rs
 src/*/encounters/**/*.rs
+src/**/*.avif
