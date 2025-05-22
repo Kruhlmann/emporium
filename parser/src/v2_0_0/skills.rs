@@ -94,7 +94,7 @@ impl JsonSkillFields {
             .map(|t| {
                 t.as_str()
                     .try_into()
-                    .inspect_err(|e| println!("cargo:warning={e}"))
+                    .inspect_err(|e| eprintln!("cargo:warning={e}"))
                     .ok()
             })
             .flatten()
@@ -159,7 +159,7 @@ impl SkillSourceBuilder {
             let ModuleName(module_name) = ModuleName::skill(name);
             let fields: JsonSkillFields = json_skill
                 .try_into()
-                .inspect_err(|e| println!("cargo:warning=invalid json ({e}) {json_skill:?}"))?;
+                .inspect_err(|e| eprintln!("cargo:warning=invalid json ({e}) {json_skill:?}"))?;
             let source = fields.to_source_code(&struct_name);
 
             let syntax_tree = syn::parse_str(&source)?;

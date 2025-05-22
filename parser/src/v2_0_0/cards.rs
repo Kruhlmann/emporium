@@ -1,6 +1,6 @@
 use heck::ToPascalCase;
 use models::v2_0_0::Tooltip;
-use std::{path::PathBuf, time::Duration};
+use std::path::PathBuf;
 
 use super::{JsonValue, ModuleName, StructName, tag_strlist};
 
@@ -120,7 +120,7 @@ impl JsonCardFields {
             .map(|t| {
                 t.as_str()
                     .try_into()
-                    .inspect_err(|e| println!("cargo:warning={e}"))
+                    .inspect_err(|e| eprintln!("cargo:warning={e}"))
                     .ok()
             })
             .flatten()
@@ -171,15 +171,131 @@ impl CardSourceBuilder {
         Ok(Self { data })
     }
 
+    #[cfg(feature = "thumbnail-backdrops")]
+    fn write_thumbnail_backdrop_files(
+        image_path: &PathBuf,
+        image_backdrop_path: &PathBuf,
+        size: &str,
+    ) -> anyhow::Result<()> {
+        use image::{DynamicImage, GenericImageView, ImageFormat};
+        if std::fs::exists(image_backdrop_path)? {
+            return Ok(());
+        }
+        eprintln!("cargo:warning=backdrop for {image_backdrop_path:?} not found; generating",);
+        let img = image::open(image_path)?;
+        let (w, h) = img.dimensions();
+
+        let mut combined = image_path.clone();
+        combined.set_file_name(format!(
+            "{}.backdrop.{}",
+            image_path.file_stem().unwrap().to_string_lossy(),
+            image_path.extension().unwrap().to_string_lossy(),
+        ));
+
+        if size == "Large" {
+            std::fs::copy(&image_path, &combined)?;
+            return Ok(());
+        }
+
+        let large_w = 384; // Medium item image is 256px
+        let large_h = ((large_w as f32) * (h as f32) / (w as f32)) as u32;
+        let resized = image::imageops::resize(
+            &img,
+            large_w,
+            large_h,
+            image::imageops::FilterType::Gaussian,
+        );
+
+        let blurred = image::imageops::blur(&resized, 30.0);
+
+        let span = match size {
+            "Small" => 1,
+            "Medium" => 2,
+            s => panic!("invalid size {s}"),
+        };
+        let slot_w_px = large_w / 3;
+        let orig_w = slot_w_px * span;
+        let orig_h = ((orig_w as f32) * (h as f32) / (w as f32)) as u32;
+        let orig_scaled =
+            image::imageops::resize(&img, orig_w, orig_h, image::imageops::FilterType::Lanczos3);
+
+        let mut canvas = DynamicImage::ImageRgba8(blurred).to_rgba8();
+        let x = (large_w - orig_w) / 2;
+        let y = (large_h - orig_h) / 2;
+        image::imageops::overlay(&mut canvas, &orig_scaled, x.into(), y.into());
+
+        DynamicImage::ImageRgba8(canvas).save_with_format(&combined, ImageFormat::Avif)?;
+        Ok(())
+    }
+
+    #[cfg(feature = "thumbnails")]
+    fn write_thumbnail_files(
+        image_id: &str,
+        image_directory: &PathBuf,
+        size: &str,
+    ) -> anyhow::Result<()> {
+        eprintln!(
+            "cargo:warning=building thumbnails from scratch. this creates a lot of network traffic and may not be appreciated by the asset hosts. use sparingly"
+        );
+        let image_filename = format!("{}.avif", image_id);
+        let image_backdrop_filename = format!("{}.backdrop.avif", image_id);
+        let image_path = image_directory.join(&image_filename);
+        let image_backdrop_path = image_directory.join(&image_backdrop_filename);
+
+        if let Ok(true) = std::fs::exists(&image_path) {
+            if cfg!(feature = "thumbnail-backdrops") {
+                return CardSourceBuilder::write_thumbnail_backdrop_files(
+                    &image_path,
+                    &image_backdrop_path,
+                    size,
+                );
+            } else {
+                return Ok(());
+            }
+        }
+
+        #[cfg(feature = "thumbnail-backdrops")]
+        std::fs::remove_file(&image_backdrop_path)?;
+
+        let mut file = std::fs::File::create(&image_path)?;
+        let url = format!(
+            "https://howbazaar-images.b-cdn.net/images/items/{}",
+            image_filename
+        );
+        eprintln!("cargo:warning=image not found; downloading from {url}");
+        // Don't DDOS
+        std::thread::sleep(Duration::from_millis(100));
+        reqwest::blocking::get(&url)?
+            .copy_to(&mut file)
+            .inspect_err(|error| {
+                eprintln!("cargo:error=unable to set file content {image_path:?}: {error}")
+            })?;
+        let file_size = file.metadata().map(|m| m.len()).unwrap_or(0);
+        if file_size == 0 {
+            eprintln!("cargo:warning=empty file created from {url} at {image_filename}");
+            std::fs::remove_file(&image_path)?;
+        }
+
+        if cfg!(feature = "thumbnail-backdrops") {
+            return CardSourceBuilder::write_thumbnail_backdrop_files(
+                &image_path,
+                &image_backdrop_path,
+                size,
+            );
+        } else {
+            return Ok(());
+        }
+    }
+
     pub fn build_source_tree(&self, root: PathBuf) -> anyhow::Result<()> {
         let card_directory = root.join("cards");
         std::fs::create_dir_all(&card_directory).inspect_err(|e| {
-            println!("cargo:warning=unable to create directory {card_directory:?} ({e})")
+            eprintln!("cargo:warning=unable to create directory {card_directory:?} ({e})")
         })?;
 
         let image_directory = card_directory.join("images");
         std::fs::create_dir_all(&image_directory).inspect_err(|e| {
-            println!("cargo:warning=unable to create directory {image_directory:?} ({e})")
+            eprintln!("cargo:warning=unable to create directory {image_directory:?} ({e})")
         })?;
 
         let cards_as_json = self.data["data"]
@@ -196,42 +312,15 @@ impl CardSourceBuilder {
             struct_metadata.push((name.to_string(), module_name.clone(), struct_name.clone()));
             let fields: JsonCardFields = json_card
                 .try_into()
-                .inspect_err(|e| println!("cargo:warning=invalid json ({e}) {json_card:?}"))?;
-            let image_filename = format!("{}.avif", fields.id);
-            let image_path = image_directory.join(&image_filename);
-            if !std::fs::exists(&image_path).unwrap_or(false) {
-                let mut file = std::fs::File::create(&image_path)?;
-                let url = format!(
-                    "https://howbazaar-images.b-cdn.net/images/items/{}",
-                    image_filename
-                );
-                println!(
-                    "cargo:warning=image for {} not found; downloading from {url}",
-                    fields.id
-                );
-                reqwest::blocking::get(&url)?
-                    .copy_to(&mut file)
-                    .inspect_err(|error| {
-                        eprintln!("unable to set file content {image_path:?}: {error}")
-                    })
-                    .unwrap_or_else(|_| {
-                        std::fs::remove_file(&image_path).ok();
-                        0
-                    });
-                let size = file.metadata().map(|m| m.len()).unwrap_or(0);
-                if size == 0 {
-                    println!("cargo:warning=empty file created from {url} at {image_filename}");
-                    std::fs::remove_file(&image_path)?;
-                }
+                .inspect_err(|e| eprintln!("cargo:warning=invalid json ({e}) {json_card:?}"))?;
 
-                // Don't burn the site
-                std::thread::sleep(Duration::from_millis(100));
-            }
+            #[cfg(feature = "thumbnails")]
+            CardSourceBuilder::write_thumbnail_files(&fields.id, &image_directory, &fields.size)?;
 
             let source = fields.to_source_code(&struct_name);
 
             let syntax_tree = syn::parse_str(&source).inspect_err(|e| {
-                println!("cargo:warning=invalid rust syntax ({e}):\n{source}");
+                eprintln!("cargo:warning=invalid rust syntax ({e}):\n{source}");
             })?;
             let formatted = prettyplease::unparse(&syntax_tree);
             std::fs::write(card_directory.join(format!("{module_name}.rs")), formatted)?;

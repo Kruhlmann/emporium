@@ -1635,6 +1635,7 @@ dependencies = [
  "gamedata",
  "image",
  "models",
+ "simulator",
  "tracing",
  "tracing-subscriber",
 ]
@@ -2936,6 +2937,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "heck",
+ "image",
  "models",
  "prettyplease",
  "reqwest",

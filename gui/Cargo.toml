@@ -9,5 +9,11 @@ egui = "0.31.1"
 image = { version = "0.25.6", features = ["avif-native"] }
 gamedata = { path = "../gamedata" }
 models = { path = "../models" }
+simulator = { path = "../simulator" }
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
+
+[features]
+default = []
+thumbnails = ["gamedata/thumbnails"]
+thumbnail-backdrops = ["gamedata/thumbnail-backdrops"]

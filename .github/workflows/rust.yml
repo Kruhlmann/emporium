@@ -13,8 +13,13 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    - name: Build
-      run: cargo +nightly build --verbose
-    - name: Run tests
-      run: cargo +nightly test --verbose
+      - uses: actions/checkout@v4
+
+      - name: Setup Nix
+        uses: cachix/install-nix-action@v18
+        with:
+          nix_path: "nixpkgs=channel:nixos-unstable"
+
+      - name: Enter Nix shell & build
+        run: |
+          nix-shell --run "cargo +nightly test --verbose"

@@ -13,3 +13,7 @@ parser = { path = "../parser" }
 [dependencies]
 lazy_static = "1.5.0"
 models = { path = "../models" }
+
+[features]
+thumbnails = ["parser/thumbnails"]
+thumbnail-backdrops = ["parser/thumbnail-backdrops"]

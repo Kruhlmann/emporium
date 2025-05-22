@@ -182,6 +182,10 @@ impl PlayerHealth {
     pub fn current(&self) -> i64 {
         self.0
     }
+
+    pub fn fraction(&self) -> f32 {
+        (self.0 as f64 / self.1 as f64) as f32
+    }
 }
 
 impl std::ops::Add<i64> for PlayerHealth {
@@ -297,7 +301,7 @@ impl TryFrom<PlayerTemplate> for Player {
             cards.push(card);
         }
         let board_spaces_required: u8 = cards.iter().map(|c| c.inner.size.board_spaces()).sum();
-        println!("board_spaces_required {board_spaces_required}");
+        eprintln!("board_spaces_required {board_spaces_required}");
         if board_spaces_required > *NUMBER_OF_BOARD_SPACES {
             anyhow::bail!("board too large ({board_spaces_required} spaces)");
         }

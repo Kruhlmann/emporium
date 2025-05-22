@@ -1,5 +1,5 @@
 fn main() -> anyhow::Result<()> {
-    println!("cargo:rerun-if-changed=res/2.0.0/");
+    eprintln!("cargo:rerun-if-changed=res/2.0.0/");
     let root = std::path::Path::new("src/v2_0_0").to_path_buf();
     let mut lib_rs_source = String::new();
     lib_rs_source += "pub mod v2_0_0;\n";
