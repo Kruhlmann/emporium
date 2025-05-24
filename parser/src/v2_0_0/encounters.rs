@@ -154,7 +154,7 @@ impl EncounterSourceBuilder {
         Ok(Self { data })
     }
 
-    pub fn build_source_tree(&self, root: PathBuf) -> anyhow::Result<()> {
+    pub fn build_source_tree(&self, root: &PathBuf) -> anyhow::Result<()> {
         let encounter_directory = root.join("encounters");
         std::fs::create_dir_all(&encounter_directory)?;
 

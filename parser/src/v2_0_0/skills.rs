@@ -143,7 +143,7 @@ impl SkillSourceBuilder {
         Ok(Self { data })
     }
 
-    pub fn build_source_tree(&self, root: PathBuf) -> anyhow::Result<()> {
+    pub fn build_source_tree(&self, root: &PathBuf) -> anyhow::Result<()> {
         let skills_directory = root.join("skills");
         std::fs::create_dir_all(&skills_directory)?;
 

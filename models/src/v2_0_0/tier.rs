@@ -9,7 +9,7 @@ pub struct TieredValue<T> {
     pub legendary: T,
 }
 
-#[derive(Deserialize, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Copy)]
 pub enum Tier {
     Bronze,
     Silver,

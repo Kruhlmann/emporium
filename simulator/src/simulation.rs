@@ -21,6 +21,14 @@ lazy_static::lazy_static! {
 }
 
 #[derive(Clone, Debug)]
+pub enum DispatchableEvent {
+    Log(String),
+    Error(String),
+    Warning(String),
+    Tick,
+}
+
+#[derive(Clone, Debug)]
 pub struct TaggedCombatEvent(pub PlayerTarget, pub CombatEvent);
 
 #[derive(Clone, Debug)]
@@ -43,24 +51,93 @@ pub enum CombatEvent {
     Freeze(CardTarget, GameTicks),
 }
 
+#[derive(Debug, Clone)]
+pub struct SimulationSummary {
+    pub total_runs: usize,
+    pub victories: usize,
+    pub defeats: usize,
+    pub draw_timeout: usize,
+    pub draw_simultaneous: usize,
+    pub average_duration: Duration,
+    pub average_player_health: f32,
+    pub average_opponent_health: f32,
+}
+
+impl From<&Vec<SimulationResult>> for SimulationSummary {
+    fn from(results: &Vec<SimulationResult>) -> Self {
+        let total_runs = results.len();
+        let mut victories = 0;
+        let mut defeats = 0;
+        let mut draw_timeout = 0;
+        let mut draw_simultaneous = 0;
+        let mut sum_duration = Duration::ZERO;
+        let mut sum_player_health = 0f64;
+        let mut sum_opponent_health = 0f64;
+
+        for res in results.iter() {
+            match res {
+                SimulationResult::Victory(..) => victories += 1,
+                SimulationResult::Defeat(..) => defeats += 1,
+                SimulationResult::Draw(kind, ..) => match kind {
+                    SimulationDrawType::Timeout => draw_timeout += 1,
+                    SimulationDrawType::SimultaneousDefeat => draw_simultaneous += 1,
+                },
+            }
+            let inner = res.inner_ref();
+            sum_duration += inner.duration;
+            sum_player_health += inner.player.health.current() as f64;
+            sum_opponent_health += inner.opponent.health.current() as f64;
+        }
+
+        let average_duration = if total_runs > 0 {
+            sum_duration / (total_runs as u32)
+        } else {
+            Duration::ZERO
+        };
+
+        let average_player_health = if total_runs > 0 {
+            (sum_player_health / total_runs as f64) as f32
+        } else {
+            0.0
+        };
+
+        let average_opponent_health = if total_runs > 0 {
+            (sum_opponent_health / total_runs as f64) as f32
+        } else {
+            0.0
+        };
+
+        SimulationSummary {
+            total_runs,
+            victories,
+            defeats,
+            draw_timeout,
+            draw_simultaneous,
+            average_duration,
+            average_player_health,
+            average_opponent_health,
+        }
+    }
+}
+
 pub fn effect_to_combat_events(value: &Effect) -> Vec<CombatEvent> {
     match value {
         Effect::DealDamage(player_target, damage) => {
             vec![CombatEvent::DealDamage(
                 *player_target,
-                (*damage).try_into().unwrap_or(0),
+                (*damage).try_into().unwrap(),
             )]
         }
         Effect::Burn(player_target, burn) => {
             vec![CombatEvent::ApplyBurn(
                 *player_target,
-                (*burn).try_into().unwrap_or(0),
+                (*burn).try_into().unwrap(),
             )]
         }
         Effect::Poison(player_target, poison) => {
             vec![CombatEvent::ApplyPoison(
                 *player_target,
-                (*poison).try_into().unwrap_or(0),
+                (*poison).try_into().unwrap(),
             )]
         }
         Effect::Freeze(target, duration_seconds) => {
@@ -105,10 +182,10 @@ pub struct Card {
 }
 
 impl Card {
+    #[inline(always)]
     pub fn tick(&mut self) -> Vec<CombatEvent> {
         if self.freeze_ticks.0 > 0 {
             self.freeze_ticks.0 -= 1;
-            eprintln!("freeze ticks now at {:?}", self.freeze_ticks);
             return vec![CombatEvent::Skip(SkipReason::IsFrozen)];
         }
         let mut events: Vec<CombatEvent> = Vec::new();
@@ -148,7 +225,6 @@ impl TryFrom<&CardTemplate> for Card {
                 Tooltip::When(EffectEvent::OnCooldown(e)) => Some(e.clone()),
                 _ => None,
             })
-            .inspect(|e| eprintln!("cooldown load: {e:?}"))
             .collect();
         let cooldown = tooltips
             .iter()
@@ -228,16 +304,10 @@ pub struct Player {
 impl Player {
     pub fn burn(&mut self, amount: i64) {
         self.burn_stacks += amount
-            .try_into()
-            .inspect_err(|_| eprintln!("invalid burn value {amount}"))
-            .unwrap_or(0);
     }
 
     pub fn poison(&mut self, amount: i64) {
         self.poison_stacks += amount
-            .try_into()
-            .inspect_err(|_| eprintln!("invalid poison value {amount}"))
-            .unwrap_or(0);
     }
 
     // TODO: This is bad.. increase the tickrate and filter every other tick for cards.
@@ -295,13 +365,12 @@ impl TryFrom<PlayerTemplate> for Player {
     fn try_from(value: PlayerTemplate) -> Result<Self, Self::Error> {
         let mut cards: Vec<Card> = Vec::new();
         for template in &value.card_templates {
-            let card = template.try_into().inspect_err(|error| {
-                eprintln!("unable to parse card template {template:?}: {error}")
+            let card = template.try_into().map_err(|error| {
+                anyhow::anyhow!("unable to parse card template {template:?}: {error}")
             })?;
             cards.push(card);
         }
         let board_spaces_required: u8 = cards.iter().map(|c| c.inner.size.board_spaces()).sum();
-        eprintln!("board_spaces_required {board_spaces_required}");
         if board_spaces_required > *NUMBER_OF_BOARD_SPACES {
             anyhow::bail!("board too large ({board_spaces_required} spaces)");
         }
@@ -341,14 +410,20 @@ pub enum SimulationResult {
     Draw(SimulationDrawType, SimulationResultInner),
 }
 
-impl std::fmt::Display for SimulationResult {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let inner = match self {
+impl SimulationResult {
+    pub fn inner_ref(&self) -> &SimulationResultInner {
+        match self {
             SimulationResult::Victory(r)
             | SimulationResult::Defeat(r)
             | SimulationResult::Draw(SimulationDrawType::Timeout, r)
             | SimulationResult::Draw(SimulationDrawType::SimultaneousDefeat, r) => r,
-        };
+        }
+    }
+}
+
+impl std::fmt::Display for SimulationResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let inner = self.inner_ref();
         let source_str = inner
             .source
             .as_ref()
@@ -373,12 +448,10 @@ impl std::fmt::Display for SimulationResult {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct SimulationTemplate {
     pub player: PlayerTemplate,
     pub opponent: PlayerTemplate,
-    #[serde(default)]
-    pub verbose: bool,
     #[serde(skip, default)]
     pub source: Option<String>,
 }
@@ -387,8 +460,9 @@ pub struct SimulationTemplate {
 pub struct Simulation {
     pub player: Player,
     pub opponent: Player,
-    pub verbose: bool,
     pub source: Option<String>,
+    pub event_sender: Option<std::sync::mpsc::Sender<DispatchableEvent>>,
+    pub stdout_enabled: bool,
 }
 
 impl TryFrom<SimulationTemplate> for Simulation {
@@ -398,30 +472,58 @@ impl TryFrom<SimulationTemplate> for Simulation {
         Ok(Self {
             player: value.player.try_into()?,
             opponent: value.opponent.try_into()?,
-            verbose: value.verbose,
             source: value.source,
+            event_sender: None,
+            stdout_enabled: false,
         })
     }
 }
 
 impl Simulation {
-    fn tick(&mut self) -> Vec<TaggedCombatEvent> {
-        let mut events: Vec<TaggedCombatEvent> = Vec::new();
-        for event in self.player.tick() {
-            events.push(TaggedCombatEvent(PlayerTarget::Player, event));
+    pub fn with_channel(mut self, sender: std::sync::mpsc::Sender<DispatchableEvent>) -> Self {
+        self.event_sender = Some(sender);
+        self
+    }
+
+    pub fn with_stdout(mut self) -> Self {
+        self.stdout_enabled = true;
+        self
+    }
+
+    fn dispatch_event(&self, event: &DispatchableEvent) {
+        if let Some(ref tx) = self.event_sender {
+            let _ = tx.send(event.clone());
         }
-        for event in self.opponent.tick() {
-            events.push(TaggedCombatEvent(PlayerTarget::Opponent, event));
+        if self.stdout_enabled {
+            eprintln!("EVENT: {:?}", event);
+        }
+    }
+
+    fn tick(&mut self) -> Vec<TaggedCombatEvent> {
+        let mut events = Vec::new();
+        for ev in self.player.tick() {
+            let tagged = TaggedCombatEvent(PlayerTarget::Player, ev);
+            events.push(tagged);
+        }
+        for ev in self.opponent.tick() {
+            let tagged = TaggedCombatEvent(PlayerTarget::Opponent, ev);
+            events.push(tagged);
         }
         events
     }
 
-    fn apply_event(&mut self, event: &TaggedCombatEvent, rng: &mut StdRng) {
+    fn apply_event(&mut self, event: &TaggedCombatEvent, rng: &mut StdRng) -> anyhow::Result<()> {
         match event {
             TaggedCombatEvent(.., CombatEvent::Skip(reason)) => {
-                eprintln!("skipped event due to {reason:?}")
+                self.dispatch_event(&DispatchableEvent::Warning(format!(
+                    "event skipped: {reason:?}"
+                )));
             }
-            TaggedCombatEvent(.., CombatEvent::Raw(s)) => eprintln!("skipped raw event {s}"),
+            TaggedCombatEvent(.., CombatEvent::Raw(s)) => {
+                self.dispatch_event(&DispatchableEvent::Warning(format!(
+                    "raw event skipped: {s}"
+                )));
+            }
             TaggedCombatEvent(owner, CombatEvent::DealDamage(target, dmg)) => match owner == target
             {
                 true => self.player.health = self.player.health - *dmg,
@@ -466,10 +568,11 @@ impl Simulation {
                             card.freeze_ticks = duration.clone();
                         }
                     }
-                    _ => panic!("invalid freeze event {event:?}"),
+                    _ => anyhow::bail!("invalid freeze event {event:?}"),
                 }
             }
         }
+        Ok(())
     }
 
     pub fn get_exit_condition(
@@ -513,47 +616,60 @@ impl Simulation {
         None
     }
 
-    pub fn run(self) -> SimulationResult {
-        let rng = rand::rngs::StdRng::from_rng(&mut rand::rng());
-        self.run_with_rng(rng)
-    }
-
-    pub fn run_with_rng(mut self, mut rng: rand::rngs::StdRng) -> SimulationResult {
+    pub fn run_once_with_rng(&mut self, mut rng: StdRng) -> SimulationResult {
         let t_start = Instant::now();
-        let mut events: Vec<TaggedCombatEvent> = Vec::new();
+        let mut events = Vec::with_capacity(*SIMULATION_TICK_COUNT);
 
-        for i in 0..*SIMULATION_TICK_COUNT {
-            let t_now = Instant::now();
-
-            if let Some(result) = self.get_exit_condition(t_now, t_start, &events) {
+        for _ in 0..*SIMULATION_TICK_COUNT {
+            if let Some(result) = self.get_exit_condition(Instant::now(), t_start, &events) {
                 return result;
             }
 
-            let mut tick_events = self.tick();
-            let mut log_line = String::new();
+            let tick_events = self.tick();
             for event in &tick_events {
-                self.apply_event(&event, &mut rng);
-                log_line.push_str(&format!("      {} -> {:?}\n", event.0, event.1));
+                self.apply_event(event, &mut rng)
+                    .inspect_err(|error| {
+                        self.dispatch_event(&DispatchableEvent::Error(format!("{error}")))
+                    })
+                    .ok();
             }
-            events.append(&mut tick_events);
-            eprint!(
-                "\n[{i}]\n  {}\n  {}\n{}",
-                self.player, self.opponent, log_line
-            );
+            events.extend(tick_events);
         }
-        eprintln!(
-            "reached iteration {} with no winner",
-            *SIMULATION_TICK_COUNT
-        );
+
         SimulationResult::Draw(
             SimulationDrawType::Timeout,
             SimulationResultInner {
-                source: self.source,
+                source: self.source.clone(),
                 events,
                 duration: Instant::now() - t_start,
-                player: self.player,
-                opponent: self.opponent,
+                player: self.player.clone(),
+                opponent: self.opponent.clone(),
             },
         )
+    }
+
+    pub fn create_rng() -> rand::rngs::StdRng {
+        rand::rngs::StdRng::from_rng(&mut rand::rng())
+    }
+
+    pub fn run_once(&mut self) -> SimulationResult {
+        let rng = rand::rngs::StdRng::from_rng(&mut rand::rng());
+        self.run_once_with_rng(rng)
+    }
+
+    pub fn run(self, iterations: usize) -> Vec<SimulationResult> {
+        let rng = rand::rngs::StdRng::from_rng(&mut rand::rng());
+        self.run_with_rng(iterations, rng)
+    }
+
+    pub fn run_with_rng(
+        mut self,
+        iterations: usize,
+        rng: rand::rngs::StdRng,
+    ) -> Vec<SimulationResult> {
+        (0..iterations)
+            .into_iter()
+            .map(|_| self.run_once_with_rng(rng.clone()))
+            .collect()
     }
 }

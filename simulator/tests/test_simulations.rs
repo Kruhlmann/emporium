@@ -15,9 +15,8 @@ fn read_and_run_simulation(path: PathBuf) -> Result<SimulationResult, Box<dyn st
     let simulation_str = std::fs::read_to_string(&path)?;
     let mut simulation: Simulation =
         toml::from_str::<SimulationTemplate>(&simulation_str)?.try_into()?;
-    simulation.verbose = true;
     simulation.source = Some(format!("{path:?}"));
-    let result = simulation.run_with_rng(rng);
+    let result = simulation.run_once_with_rng(rng);
     eprintln!("\x1b[0;31m{path:?}\x1b[0;0m");
     Ok(result)
 }

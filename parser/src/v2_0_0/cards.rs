@@ -2,6 +2,8 @@ use heck::ToPascalCase;
 use models::v2_0_0::Tooltip;
 use std::path::PathBuf;
 
+use crate::HTTP_REQUEST_THROTTLE;
+
 use super::{JsonValue, ModuleName, StructName, tag_strlist};
 
 pub struct JsonCardFields {
@@ -172,64 +174,75 @@ impl CardSourceBuilder {
     }
 
     #[cfg(feature = "thumbnail-backdrops")]
-    fn write_thumbnail_backdrop_files(
+    async fn write_thumbnail_backdrop_files(
         image_path: &PathBuf,
         image_backdrop_path: &PathBuf,
         size: &str,
     ) -> anyhow::Result<()> {
         use image::{DynamicImage, GenericImageView, ImageFormat};
-        if std::fs::exists(image_backdrop_path)? {
-            return Ok(());
-        }
-        eprintln!("cargo:warning=backdrop for {image_backdrop_path:?} not found; generating",);
-        let img = image::open(image_path)?;
-        let (w, h) = img.dimensions();
+        let image_path = image_path.clone();
+        let image_backdrop_path = image_backdrop_path.clone();
+        let size = size.to_string();
+        tokio::task::spawn_blocking(move || {
+            if std::fs::exists(&image_backdrop_path)? {
+                return Ok::<(), anyhow::Error>(());
+            }
+            eprintln!("cargo:warning=backdrop for {image_backdrop_path:?} not found; generating",);
+            let img = image::open(&image_path)?;
+            let (w, h) = img.dimensions();
 
-        let mut combined = image_path.clone();
-        combined.set_file_name(format!(
-            "{}.backdrop.{}",
-            image_path.file_stem().unwrap().to_string_lossy(),
-            image_path.extension().unwrap().to_string_lossy(),
-        ));
+            let mut combined = image_path.clone();
+            combined.set_file_name(format!(
+                "{}.backdrop.{}",
+                image_path.file_stem().unwrap().to_string_lossy(),
+                image_path.extension().unwrap().to_string_lossy(),
+            ));
 
-        if size == "Large" {
-            std::fs::copy(&image_path, &combined)?;
-            return Ok(());
-        }
+            if size == "Large" {
+                std::fs::copy(&image_path, &combined)?;
+                return Ok(());
+            }
 
-        let large_w = 384; // Medium item image is 256px
-        let large_h = ((large_w as f32) * (h as f32) / (w as f32)) as u32;
-        let resized = image::imageops::resize(
-            &img,
-            large_w,
-            large_h,
-            image::imageops::FilterType::Gaussian,
-        );
+            let large_w = 384; // Medium item image is 256px
+            let large_h = ((large_w as f32) * (h as f32) / (w as f32)) as u32;
+            let resized = image::imageops::resize(
+                &img,
+                large_w,
+                large_h,
+                image::imageops::FilterType::Gaussian,
+            );
 
-        let blurred = image::imageops::blur(&resized, 30.0);
+            let blurred = image::imageops::blur(&resized, 30.0);
 
-        let span = match size {
-            "Small" => 1,
-            "Medium" => 2,
-            s => panic!("invalid size {s}"),
-        };
-        let slot_w_px = large_w / 3;
-        let orig_w = slot_w_px * span;
-        let orig_h = ((orig_w as f32) * (h as f32) / (w as f32)) as u32;
-        let orig_scaled =
-            image::imageops::resize(&img, orig_w, orig_h, image::imageops::FilterType::Lanczos3);
+            let span = match size.as_str() {
+                "Small" => 1,
+                "Medium" => 2,
+                s => panic!("invalid size {s}"),
+            };
+            let slot_w_px = large_w / 3;
+            let orig_w = slot_w_px * span;
+            let orig_h = ((orig_w as f32) * (h as f32) / (w as f32)) as u32;
+            let orig_scaled = image::imageops::resize(
+                &img,
+                orig_w,
+                orig_h,
+                image::imageops::FilterType::Lanczos3,
+            );
 
-        let mut canvas = DynamicImage::ImageRgba8(blurred).to_rgba8();
-        let x = (large_w - orig_w) / 2;
-        let y = (large_h - orig_h) / 2;
-        image::imageops::overlay(&mut canvas, &orig_scaled, x.into(), y.into());
+            let mut canvas = DynamicImage::ImageRgba8(blurred).to_rgba8();
+            let x = (large_w - orig_w) / 2;
+            let y = (large_h - orig_h) / 2;
+            image::imageops::overlay(&mut canvas, &orig_scaled, x.into(), y.into());
 
-        DynamicImage::ImageRgba8(canvas).save_with_format(&combined, ImageFormat::Avif)?;
+            DynamicImage::ImageRgba8(canvas).save_with_format(&combined, ImageFormat::Avif)?;
+            Ok(())
+        })
+        .await??;
         Ok(())
     }
 
     #[cfg(feature = "thumbnails")]
-    fn write_thumbnail_files(
+    async fn write_thumbnail_files(
         image_id: &str,
         image_directory: &PathBuf,
         size: &str,
@@ -238,8 +251,8 @@ impl CardSourceBuilder {
             "cargo:warning=building thumbnails from scratch. this creates a lot of network traffic and may not be appreciated by the asset hosts. use sparingly"
         );
         let image_filename = format!("{}.avif", image_id);
-        let image_backdrop_filename = format!("{}.backdrop.avif", image_id);
         let image_path = image_directory.join(&image_filename);
+        let image_backdrop_filename = format!("{}.backdrop.avif", image_id);
         let image_backdrop_path = image_directory.join(&image_backdrop_filename);
 
         if let Ok(true) = std::fs::exists(&image_path) {
@@ -248,14 +261,14 @@ impl CardSourceBuilder {
                     &image_path,
                     &image_backdrop_path,
                     size,
-                );
+                )
+                .await;
             } else {
                 return Ok(());
             }
         }
 
-        #[cfg(feature = "thumbnail-backdrops")]
-        std::fs::remove_file(&image_backdrop_path)?;
+        let _permit = HTTP_REQUEST_THROTTLE.acquire().await;
 
         let mut file = std::fs::File::create(&image_path)?;
         let url = format!(
@@ -263,80 +276,118 @@ impl CardSourceBuilder {
             image_filename
         );
         eprintln!("cargo:warning=image not found; downloading from {url}");
-        // Don't DDOS
-        std::thread::sleep(Duration::from_millis(100));
-        reqwest::blocking::get(&url)?
-            .copy_to(&mut file)
-            .inspect_err(|error| {
-                eprintln!("cargo:error=unable to set file content {image_path:?}: {error}")
-            })?;
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+        let response = reqwest::get(&url).await?;
+        response.error_for_status_ref()?;
+        let mut content = response.bytes().await?;
+        std::io::copy(&mut content.as_ref(), &mut file).inspect_err(|error| {
+            eprintln!(
+                "cargo:error=unable to set file content {:?}: {error}",
+                image_path
+            )
+        })?;
+
         let file_size = file.metadata().map(|m| m.len()).unwrap_or(0);
         if file_size == 0 {
             eprintln!("cargo:warning=empty file created from {url} at {image_filename}");
             std::fs::remove_file(&image_path)?;
         }
 
+        #[cfg(feature = "thumbnail-backdrops")]
+        std::fs::remove_file(&image_backdrop_path)?;
         if cfg!(feature = "thumbnail-backdrops") {
-            return CardSourceBuilder::write_thumbnail_backdrop_files(
+            CardSourceBuilder::write_thumbnail_backdrop_files(
                 &image_path,
                 &image_backdrop_path,
                 size,
-            );
+            )
+            .await
         } else {
-            return Ok(());
+            Ok(())
         }
     }
 
-    pub fn build_source_tree(&self, root: PathBuf) -> anyhow::Result<()> {
+    pub async fn build_source_tree(self, root: &PathBuf) -> anyhow::Result<()> {
         let card_directory = root.join("cards");
-        std::fs::create_dir_all(&card_directory).inspect_err(|e| {
-            eprintln!("cargo:warning=unable to create directory {card_directory:?} ({e})")
-        })?;
-
         let image_directory = card_directory.join("images");
-        std::fs::create_dir_all(&image_directory).inspect_err(|e| {
-            eprintln!("cargo:warning=unable to create directory {image_directory:?} ({e})")
-        })?;
 
-        let cards_as_json = self.data["data"]
+        tokio::fs::create_dir_all(&image_directory).await?;
+
+        let cards = self.data["data"]
             .as_array()
-            .ok_or(anyhow::anyhow!("no data property on root object"))?;
-        let mut struct_metadata: Vec<(String, String, String)> = Vec::new();
-        let mut cards_mod_rs_source = String::from("// @generated\n");
-        for json_card in cards_as_json {
-            let name = json_card["name"]
-                .as_str()
-                .ok_or(anyhow::anyhow!("no name property for"))?;
-            let StructName(struct_name) = StructName::card(name);
-            let ModuleName(module_name) = ModuleName::card(name);
-            struct_metadata.push((name.to_string(), module_name.clone(), struct_name.clone()));
-            let fields: JsonCardFields = json_card
-                .try_into()
-                .inspect_err(|e| eprintln!("cargo:warning=invalid json ({e}) {json_card:?}"))?;
+            .ok_or_else(|| anyhow::anyhow!("no data array"))?
+            .clone();
 
+        let mut handles = Vec::with_capacity(cards.len());
+
+        for json_card in cards {
+            let card_directory = card_directory.clone();
             #[cfg(feature = "thumbnails")]
-            CardSourceBuilder::write_thumbnail_files(&fields.id, &image_directory, &fields.size)?;
+            let image_directory = image_directory.clone();
+            handles.push(tokio::spawn(async move {
+                let name = json_card["name"]
+                    .as_str()
+                    .ok_or_else(|| anyhow::anyhow!("card missing name"))?;
+                let name_owned = name.to_string();
+                let fields: JsonCardFields = (&json_card)
+                    .try_into()
+                    .map_err(|e| anyhow::anyhow!("invalid card JSON: {e}"))?;
 
-            let source = fields.to_source_code(&struct_name);
+                #[cfg(feature = "thumbnails")]
+                CardSourceBuilder::write_thumbnail_files(
+                    &fields.id,
+                    &image_directory,
+                    &fields.size,
+                )
+                .await?;
 
-            let syntax_tree = syn::parse_str(&source).inspect_err(|e| {
-                eprintln!("cargo:warning=invalid rust syntax ({e}):\n{source}");
-            })?;
-            let formatted = prettyplease::unparse(&syntax_tree);
-            std::fs::write(card_directory.join(format!("{module_name}.rs")), formatted)?;
-            cards_mod_rs_source.push_str(&format!(
-                "pub mod {module_name};\npub use {module_name}::{struct_name};\n"
+                let name_returned = name_owned.clone();
+                let (module_name, struct_name, source_code) =
+                    tokio::task::spawn_blocking(move || {
+                        let StructName(struct_name) = StructName::card(&name_owned);
+                        let ModuleName(module_name) = ModuleName::card(&name_owned);
+                        let source = fields.to_source_code(&struct_name);
+                        let syntax_tree = syn::parse_str(&source).inspect_err(|e| {
+                            eprintln!("cargo:warning=invalid rust syntax ({e}):\n{source}");
+                        })?;
+                        let formatted = prettyplease::unparse(&syntax_tree);
+                        Ok::<_, anyhow::Error>((module_name, struct_name, formatted))
+                    })
+                    .await??;
+
+                let file_path = card_directory.join(format!("{}.rs", module_name));
+                tokio::fs::write(&file_path, source_code).await?;
+
+                Ok::<(String, String, String), anyhow::Error>((
+                    module_name,
+                    struct_name,
+                    name_returned,
+                ))
+            }));
+        }
+
+        let mut struct_metadata_list = Vec::new();
+        for handle in handles {
+            struct_metadata_list.push(handle.await??);
+        }
+
+        // Generate mod.rs
+        let mut mod_src = String::from("// @generated\n");
+        for (module_name, struct_name, _) in &struct_metadata_list {
+            mod_src.push_str(&format!(
+                "pub mod {module_name}; pub use {module_name}::{struct_name};\n",
             ));
         }
-        cards_mod_rs_source.push_str("lazy_static::lazy_static!{\n    pub static ref CONSTRUCT_CARD_BY_NAME: std::collections::HashMap<&'static str, fn() -> models::v2_0_0::Card> = std::collections::HashMap::from([\n");
-        for (name, module_name, struct_name) in struct_metadata {
-            cards_mod_rs_source.push_str(&format!(
+        mod_src.push_str("lazy_static::lazy_static!{\n    pub static ref CONSTRUCT_CARD_BY_NAME: std::collections::HashMap<&'static str, fn() -> models::v2_0_0::Card> = std::collections::HashMap::from([\n");
+        for (module_name, struct_name, name) in &struct_metadata_list {
+            mod_src.push_str(&format!(
                 r#"        ("{name}", {module_name}::{struct_name}::new as fn() -> _),"#
             ));
-            cards_mod_rs_source.push_str("\n");
+            mod_src.push_str("\n");
         }
-        cards_mod_rs_source.push_str("\n    ]);\n}\n");
-        std::fs::write(card_directory.join("mod.rs"), cards_mod_rs_source)?;
+        mod_src.push_str("\n    ]);\n}\n");
+        tokio::fs::write(card_directory.join("mod.rs"), mod_src).await?;
         Ok(())
     }
 }

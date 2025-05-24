@@ -12,6 +12,11 @@ models = { path = "../models" }
 simulator = { path = "../simulator" }
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
+toml = "0.8.22"
+anyhow = "1.0.98"
+num_cpus = "1.16.0"
+lazy_static = "1.5.0"
+egui-file-dialog = "0.10.0"
 
 [features]
 default = []
