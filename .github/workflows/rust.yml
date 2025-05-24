@@ -22,4 +22,4 @@ jobs:
 
       - name: Enter Nix shell & build
         run: |
-          nix-shell --run "cargo +nightly test --verbose"
+          nix-shell --run "cargo +nightly check && cargo +nightly test --verbose"
