@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["gamedata", "gui", "models", "parser", "serializer", "simulator"]
+members = ["gamedata", "gui", "models", "parser", "simulator"]
 
 [profile.release]
 lto = true

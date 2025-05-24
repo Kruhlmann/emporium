@@ -2,8 +2,6 @@ use heck::ToPascalCase;
 use models::v2_0_0::Tooltip;
 use std::path::PathBuf;
 
-use crate::HTTP_REQUEST_THROTTLE;
-
 use super::{JsonValue, ModuleName, StructName, tag_strlist};
 
 pub struct JsonCardFields {
