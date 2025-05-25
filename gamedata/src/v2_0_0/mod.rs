@@ -1,8 +1,6 @@
 // @generated
 pub mod cards;
-pub mod encounters;
 pub mod skills;
-
-pub use cards::*;
-pub use encounters::*;
+pub mod encounters; pub use cards::*;
 pub use skills::*;
+pub use encounters::*;

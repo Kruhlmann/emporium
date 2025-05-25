@@ -1,6 +1,6 @@
 use regex::Regex;
 
-use super::{CardTarget, Effect, GlobalEvent, PlayerTarget};
+use super::{CardTarget, DerivedValue, Effect, GlobalEvent, PlayerTarget};
 
 lazy_static::lazy_static! {
     pub static ref EFFECT_DEAL_DAMAGE: Regex = Regex::new(r"^deal (\d+) damage\.?$").unwrap();
@@ -57,7 +57,10 @@ impl EffectEvent {
         if let Some(captures) = EFFECT_SHIELD.captures(tooltip) {
             if let Some(shield_str) = captures.get(1) {
                 if let Ok(shield) = shield_str.as_str().parse::<u64>() {
-                    return EffectEvent::OnCooldown(Effect::Shield(PlayerTarget::Player, shield));
+                    return EffectEvent::OnCooldown(Effect::Shield(
+                        PlayerTarget::Player,
+                        DerivedValue::Constant(shield),
+                    ));
                 }
             }
         }

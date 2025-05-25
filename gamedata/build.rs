@@ -16,6 +16,12 @@ async fn main() -> anyhow::Result<()> {
         let v_str_dot = format!("{}.{}.{}", version.0, version.1, version.2);
         lib_rs_source.push_str(&format!("pub mod v{v_str_underscore};\n"));
 
+        tokio::fs::write(
+            card_root.join("mod.rs"),
+            format!("// @generated\npub mod cards;\npub mod skills;\npub mod encounters; pub use cards::*;\npub use skills::*;\npub use encounters::*;\n"),
+        )
+        .await?;
+
         let card_root = card_root.clone();
         let skill_root = skill_root.clone();
         let encounter_root = encounter_root.clone();

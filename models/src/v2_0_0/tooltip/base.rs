@@ -3,8 +3,8 @@ use regex::Regex;
 use crate::v2_0_0::{EffectValue, Tag};
 
 use super::{
-    CardTarget, Condition, Effect, EffectEvent, GlobalEvent, Modifier, PlayerTarget,
-    TargetCondition,
+    CardTarget, Condition, DerivedValue, DerivedValueProperty, DerivedValueTarget, Effect,
+    EffectEvent, GlobalEvent, Modifier, PlayerTarget, TargetCondition,
 };
 
 lazy_static::lazy_static! {
@@ -264,7 +264,18 @@ impl Tooltip {
             // TODO: change to percentage
             return Tooltip::When(EffectEvent::OnCooldown(Effect::Shield(
                 PlayerTarget::Opponent,
-                100,
+                DerivedValue::Constant(100),
+            )));
+        }
+        if value == "shield equal to the value of the adjacent items." {
+            // TODO: change to percentage
+            return Tooltip::When(EffectEvent::OnCooldown(Effect::Shield(
+                PlayerTarget::Opponent,
+                DerivedValue::From(
+                    DerivedValueTarget::AdjacentItems,
+                    DerivedValueProperty::Value,
+                    1.0,
+                ),
             )));
         }
         if let Some(capture) = HASTE_N_FOR_M.captures(value) {

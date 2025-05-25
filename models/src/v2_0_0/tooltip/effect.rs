@@ -21,6 +21,34 @@ lazy_static::lazy_static! {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub enum DerivedValueTarget {
+    AdjacentItems,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum DerivedValueProperty {
+    Value,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum DerivedValue<T> {
+    Constant(T),
+    From(DerivedValueTarget, DerivedValueProperty, f32),
+}
+
+impl<T: std::fmt::Display> std::fmt::Display for DerivedValue<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DerivedValue::Constant(i) => write!(f, "DerivedValue::Constant({i})"),
+            DerivedValue::From(i, j, k) => write!(
+                f,
+                "DerivedValue::From(DerivedValueTarget::{i:?}, DerivedValueProperty::{j:?}, {k:.2})"
+            ),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum Effect {
     Raw(String),
     GainShield(CardTarget, EffectValue<f64>),
@@ -35,7 +63,7 @@ pub enum Effect {
     Destroy(CardTarget),
     Burn(PlayerTarget, u64),
     Heal(PlayerTarget, u64),
-    Shield(PlayerTarget, u64),
+    Shield(PlayerTarget, DerivedValue<u64>),
     Poison(PlayerTarget, u64),
     GainGold(PlayerTarget, u64),
     DealDamage(PlayerTarget, u64),
