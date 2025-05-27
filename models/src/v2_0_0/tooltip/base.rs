@@ -1,6 +1,6 @@
 use regex::Regex;
 
-use crate::v2_0_0::{EffectValue, Tag};
+use crate::v2_0_0::{EffectValue, Percentage, Tag};
 
 use super::{
     CardDerivedProperty, CardTarget, Condition, DerivedValue, Effect, EffectEvent, GlobalEvent,
@@ -35,6 +35,7 @@ pub enum Tooltip {
     When(EffectEvent),
     StaticModifier(Modifier),
     ConditionalModifier(Condition, Modifier),
+    SellsForGold, // TODO Not used since theres no extra value data
     Raw(String),
 }
 
@@ -43,6 +44,7 @@ impl std::fmt::Display for Tooltip {
         match self {
             Tooltip::Conditional(i, j) => write!(f, "Tooltip::Conditional({i}, {j})"),
             Tooltip::When(i) => write!(f, "Tooltip::When({i})"),
+            Tooltip::SellsForGold => write!(f, "Tooltip::SellsForGold"),
             Tooltip::StaticModifier(i) => write!(f, "Tooltip::StaticModifier({i})"),
             Tooltip::ConditionalModifier(i, j) => {
                 write!(f, "Tooltip::ConditionalModifier({i}, {j})")
@@ -176,6 +178,7 @@ impl Tooltip {
         }
         if value.starts_with("crit chance") {
             return parse_numeric(value)
+                .map(Percentage::from_percentage_value)
                 .map(Modifier::CritChance)
                 .map(Tooltip::StaticModifier)
                 .unwrap_or(Tooltip::Raw(value.to_string()));
@@ -212,6 +215,9 @@ impl Tooltip {
         if value.starts_with("at the start of") {
             return Tooltip::from_at_the_start(value).unwrap_or(Tooltip::Raw(value.to_string()));
         }
+        if value == "sells for gold." {
+            return Tooltip::SellsForGold;
+        }
         if value == "this deals double crit damage." {
             return Tooltip::StaticModifier(Modifier::DoubleCritDamage);
         }
@@ -235,8 +241,7 @@ impl Tooltip {
         if let Some(rest) = value.strip_prefix("use ") {
             let effect = Effect::UseCard(CardTarget(
                 1,
-                TargetCondition::from_str(&rest)
-                    & TargetCondition::HasOwner(PlayerTarget::Player),
+                TargetCondition::from_str(&rest) & TargetCondition::HasOwner(PlayerTarget::Player),
             ));
             return Tooltip::When(EffectEvent::OnCooldown(effect));
         }
@@ -253,7 +258,9 @@ impl Tooltip {
             return Tooltip::StaticModifier(Modifier::Radiant);
         }
         if value == "+50% crit chance" {
-            return Tooltip::StaticModifier(Modifier::CritChance(50));
+            return Tooltip::StaticModifier(Modifier::CritChance(
+                Percentage::from_percentage_value(50.0),
+            ));
         }
         if value == "this has +1 multicast." {
             return Tooltip::StaticModifier(Modifier::Multicast(1));

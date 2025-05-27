@@ -35,7 +35,6 @@ impl Player {
     // TODO: This is bad.. increase the tickrate and filter every other tick for cards.
     pub fn burn_tick(&mut self) {
         if self.burn_stacks == 0 {
-            eprintln!("no burn");
             return;
         }
 

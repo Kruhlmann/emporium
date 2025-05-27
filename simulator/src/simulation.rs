@@ -3,7 +3,7 @@ use std::{collections::HashMap, time::Instant};
 use models::v2_0_0::{
     CardDerivedProperty, DerivedValue, Enchantment, PlayerTarget, TargetCondition,
 };
-use rand::{SeedableRng, rngs::StdRng, seq::SliceRandom};
+use rand::{Rng, SeedableRng, rngs::StdRng, seq::SliceRandom};
 
 use crate::{
     Card, CardModification, CardSummary, CombatEvent, DispatchableEvent, GlobalCardId,
@@ -158,15 +158,7 @@ impl Simulation {
     fn tick(&mut self) -> Vec<TaggedCombatEvent> {
         let mut events: Vec<TaggedCombatEvent> = Vec::new();
 
-        eprintln!(
-            "Player pre tick with {} burn, {} hp and {} shield",
-            self.player.burn_stacks, self.player.health, self.player.shield
-        );
         self.player.tick();
-        eprintln!(
-            "Opponent pre tick with {} burn, {} hp and {} shield",
-            self.opponent.burn_stacks, self.opponent.health, self.opponent.shield
-        );
         self.opponent.tick();
         for (_, card) in &mut self.cards {
             let mut card_events = &mut card
@@ -193,10 +185,30 @@ impl Simulation {
                     "raw event skipped: {s}"
                 )));
             }
-            TaggedCombatEvent(owner, CombatEvent::DealDamage(player_target, dmg, ..)) => {
-                match owner == player_target {
-                    true => self.player.take_damage(*dmg),
-                    false => self.opponent.take_damage(*dmg),
+            TaggedCombatEvent(owner, CombatEvent::DealDamage(player_target, dmg, source_id)) => {
+                if let Some(card) = self.cards.get(source_id) {
+                    let r = rng.random::<f64>();
+                    let did_crit = card.crit_chance.as_fraction() < r;
+                    eprintln!("CRIT {did_crit} {r} {}", card.crit_chance.as_fraction());
+                    eprintln!("CRIT {did_crit}");
+                    eprintln!("CRIT {did_crit}");
+                    eprintln!("CRIT {did_crit}");
+                    eprintln!("CRIT {did_crit}");
+                    eprintln!("CRIT {did_crit}");
+                    eprintln!("CRIT {did_crit}");
+                    eprintln!("CRIT {did_crit}");
+                    let dmg = if did_crit {
+                        // TODO what about increased crit dmg
+                        *dmg + *dmg
+                    } else {
+                        *dmg
+                    };
+                    match owner == player_target {
+                        true => self.player.take_damage(dmg),
+                        false => self.opponent.take_damage(dmg),
+                    }
+                } else {
+                    // TODO else what?
                 }
             }
             TaggedCombatEvent(owner, CombatEvent::ApplyBurn(player_target, burn, ..)) => {
@@ -360,8 +372,6 @@ impl Simulation {
 
         for _ in 0..*SIMULATION_TICK_COUNT {
             if let Some(result) = self.get_exit_condition(Instant::now(), t_start, &events) {
-                eprintln!("playe rhp {}", self.player.health);
-                eprintln!("oppon rhp {}", self.opponent.health);
                 return result;
             }
 

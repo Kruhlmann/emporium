@@ -8,9 +8,9 @@ use simulator::{Simulation, SimulationDrawType, SimulationResult, SimulationTemp
 static SEED: u64 = 0x3a3f7af8085da7a2;
 
 fn read_and_run_simulation(path: &PathBuf) -> Result<SimulationResult, Box<dyn std::error::Error>> {
-    let rng = StdRng::seed_from_u64(SEED);
     let simulation_str = std::fs::read_to_string(path)?;
     let template = toml::from_str::<SimulationTemplate>(&simulation_str)?;
+    let rng = StdRng::seed_from_u64(template.seed.unwrap_or(SEED));
     let simulation: Simulation = template.try_into()?;
     let mut simulation = simulation.with_stdout();
     simulation.source = Some(format!("{path:?}"));

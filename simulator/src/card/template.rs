@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use models::v2_0_0::{Effect, EffectEvent, Modifier, PlayerTarget, Tier, Tooltip};
+use models::v2_0_0::{Effect, EffectEvent, Modifier, Percentage, PlayerTarget, Tier, Tooltip};
 use serde::Deserialize;
 
 use crate::GameTicks;
@@ -48,10 +48,19 @@ impl CardTemplate {
             })
             .unwrap_or(Duration::from_secs(0));
 
+        let crit_chance: Percentage = tooltips
+            .iter()
+            .find_map(|t| match t {
+                Tooltip::StaticModifier(Modifier::CritChance(c)) => Some(*c),
+                _ => None,
+            })
+            .unwrap_or_default();
+
         Ok(Card {
             inner,
             position,
             owner,
+            crit_chance,
             tier: self.tier,
             id_for_simulation: id,
             modifications: self.modifications.clone(),

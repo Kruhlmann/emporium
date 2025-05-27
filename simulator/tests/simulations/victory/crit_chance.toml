@@ -1,0 +1,15 @@
+seed = 0x3a3f7af8085da7b8
+
+[player]
+health = 16
+
+[[player.cards]]
+name = "Revolver"
+tier = "Bronze"
+
+[opponent]
+health = 16
+
+[[opponent.cards]]
+name = "Revolver"
+tier = "Bronze"

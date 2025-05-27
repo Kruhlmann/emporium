@@ -1,3 +1,5 @@
+use crate::v2_0_0::Percentage;
+
 use super::EffectValue;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -5,7 +7,7 @@ pub enum Modifier {
     DoubleCritDamage,
     WeaponDamage(EffectValue<u32>),
     LessDamageTaken(EffectValue<u32>),
-    CritChance(u32),
+    CritChance(Percentage),
     Cooldown(f64),
     Ammo(u32),
     Multicast(u32),

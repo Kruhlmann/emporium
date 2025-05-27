@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use models::v2_0_0::{Effect, PlayerTarget, TargetCondition, Tier};
+use models::v2_0_0::{Effect, Percentage, PlayerTarget, TargetCondition, Tier};
 
 use crate::{CombatEvent, GameTicks, SkipReason};
 
@@ -19,6 +19,7 @@ pub struct Card {
     pub slow_ticks: GameTicks,
     pub position: u8,
     pub owner: PlayerTarget,
+    pub crit_chance: Percentage,
 }
 
 impl Card {

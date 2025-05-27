@@ -597,6 +597,7 @@ impl App {
                                     skill_templates: vec![],
                                 }, // TODO: SKILLS!
                                 source: None,
+                                seed: None,
                             };
                             let sim_template = Arc::new(sim_template);
 
