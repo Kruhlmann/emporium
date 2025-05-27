@@ -18,7 +18,5 @@ pub enum CombatEvent {
     Freeze(CardTarget, GameTicks, GlobalCardId),
 }
 
-// This is useless, I baked in ownership into the simulator::Card - pretty good!!
-// ok nvm mby its not
 #[derive(Clone, Debug)]
 pub struct TaggedCombatEvent(pub PlayerTarget, pub CombatEvent);
