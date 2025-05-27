@@ -23,6 +23,7 @@ pkgs.mkShell {
     pkgs.pkg-config
     pkgs.openssl
     pkgs.nasm
+    pkgs.gnuplot
     pkgs.dav1d.dev
     includes
     pkgs.xorg.libX11.dev

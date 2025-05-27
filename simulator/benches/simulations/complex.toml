@@ -1,13 +1,13 @@
 [player]
-health = 300
+health = 3000
 
 [[player.cards]]
-name = "Trained Spider"
+name = "Sapphire"
 tier = "Silver"
 
 [[player.cards]]
-name = "Trained Spider"
-tier = "Bronze"
+name = "Abacus"
+tier = "Gold"
 
 [[player.cards]]
 name = "Trained Spider"
@@ -15,14 +15,14 @@ tier = "Bronze"
 
 [[player.cards]]
 name = "Trained Spider"
-tier = "Bronze"
+tier = "Diamond"
 
 [[player.cards]]
 name = "Trained Spider"
 tier = "Bronze"
 
 [opponent]
-health = 300
+health = 3000
 
 [[opponent.cards]]
 name = "Lighter"
@@ -35,3 +35,8 @@ tier = "Bronze"
 [[opponent.cards]]
 name = "Lighter"
 tier = "Bronze"
+
+[[opponent.cards]]
+name = "Fang"
+tier = "Diamond"
+modifications = [{ Enchanted = "Radiant" }]

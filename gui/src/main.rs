@@ -336,17 +336,29 @@ impl App {
                             let size = temp.card.size.board_spaces() as u8;
                             tracing::debug!(?path, "spawn load texture thread");
                             thread::spawn(move || {
-                                let bytes = std::fs::read(&path).unwrap();
-                                let img =
-                                    image::load_from_memory_with_format(&bytes, ImageFormat::Avif)
-                                        .unwrap()
-                                        .to_rgba8();
-                                let (w, h) = img.dimensions();
-                                let ci = ColorImage::from_rgba_unmultiplied(
-                                    [w as usize, h as usize],
-                                    &img.into_raw(),
-                                );
-                                tx.send((id.to_string(), ci, size)).unwrap();
+                                match std::fs::read(&path) {
+                                    Ok(bytes) => match image::load_from_memory_with_format(
+                                        &bytes,
+                                        ImageFormat::Avif,
+                                    )
+                                    .map(|i| i.to_rgba8())
+                                    {
+                                        Ok(img) => {
+                                            let (w, h) = img.dimensions();
+                                            let ci = ColorImage::from_rgba_unmultiplied(
+                                                [w as usize, h as usize],
+                                                &img.into_raw(),
+                                            );
+                                            tx.send((id.to_string(), ci, size)).unwrap();
+                                        }
+                                        Err(error) => {
+                                            tracing::warn!(?error, ?path, "unable to load texture")
+                                        }
+                                    },
+                                    Err(error) => {
+                                        tracing::warn!(?error, ?path, "unable to read texture")
+                                    }
+                                };
                             });
                         }
 

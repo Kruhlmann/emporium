@@ -12,7 +12,7 @@ use crate::{
     SimulationResultInner, SimulationTemplate, TaggedCombatEvent,
 };
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Simulation {
     pub player: Player,
     pub opponent: Player,
@@ -77,7 +77,7 @@ impl TryFrom<SimulationTemplate> for Simulation {
 }
 
 impl Simulation {
-    // Dont store them like this, keep them indexable at the position for performance during
+    // TODO Dont store them like this, keep them indexable at the position for performance during
     // lookups
     pub fn card_at_position<'a>(&self, cards: &'a Vec<Card>, position: u8) -> Option<&'a Card> {
         if let Some(c) = cards.iter().find(|c| c.position == position) {
@@ -158,17 +158,12 @@ impl Simulation {
 
     fn tick(&mut self) -> Vec<TaggedCombatEvent> {
         let mut events: Vec<TaggedCombatEvent> = Vec::new();
-
         self.player.tick();
         self.opponent.tick();
         for (_, card) in &mut self.cards {
-            let mut card_events = &mut card
-                .tick()
-                .iter()
-                // Unnecessary clone? We should maybe consume the effect
-                .map(|e| TaggedCombatEvent(card.owner, e.clone()))
-                .collect::<Vec<TaggedCombatEvent>>();
-            events.append(&mut card_events)
+            for e in card.tick() {
+                events.push(TaggedCombatEvent(card.owner, e));
+            }
         }
         events
     }
@@ -232,12 +227,7 @@ impl Simulation {
                     PlayerTarget::Opponent => &player_target.inverse(),
                 };
                 match shield_target {
-                    PlayerTarget::Player => {
-                        eprintln!(
-                            "shield event from {owner} maked to {player_target} results in the player getting {shield} shield"
-                        );
-                        self.player.shield(shield_value)
-                    }
+                    PlayerTarget::Player => self.player.shield(shield_value),
                     PlayerTarget::Opponent => self.opponent.shield(shield_value),
                 }
             }
