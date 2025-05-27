@@ -1,6 +1,6 @@
 use regex::Regex;
 
-use super::{CardTarget, DerivedValue, Effect, GlobalEvent, PlayerTarget};
+use super::{DerivedValue, Effect, GlobalEvent, PlayerTarget, TargetCondition};
 
 lazy_static::lazy_static! {
     pub static ref EFFECT_DEAL_DAMAGE: Regex = Regex::new(r"^deal (\d+) damage\.?$").unwrap();
@@ -16,8 +16,8 @@ pub enum EffectEvent {
     OnDayStart(Effect),
     OnWinVersusHero(Effect),
     OnFightStart(Effect),
-    OnCardUsed(CardTarget, Effect),
-    OnCrit(CardTarget, Effect),
+    OnCardUsed(TargetCondition, Effect),
+    OnCrit(TargetCondition, Effect),
     OnFirstTime(GlobalEvent, Effect),
     Raw(String),
 }
@@ -42,21 +42,21 @@ impl EffectEvent {
         let tooltip = tooltip.trim();
         if let Some(captures) = EFFECT_BURN.captures(tooltip) {
             if let Some(burn_str) = captures.get(1) {
-                if let Ok(burn) = burn_str.as_str().parse::<u64>() {
+                if let Ok(burn) = burn_str.as_str().parse::<u32>() {
                     return EffectEvent::OnCooldown(Effect::Burn(PlayerTarget::Opponent, burn));
                 }
             }
         }
         if let Some(captures) = EFFECT_POISON.captures(tooltip) {
             if let Some(poison_str) = captures.get(1) {
-                if let Ok(poison) = poison_str.as_str().parse::<u64>() {
+                if let Ok(poison) = poison_str.as_str().parse::<u32>() {
                     return EffectEvent::OnCooldown(Effect::Poison(PlayerTarget::Opponent, poison));
                 }
             }
         }
         if let Some(captures) = EFFECT_SHIELD.captures(tooltip) {
             if let Some(shield_str) = captures.get(1) {
-                if let Ok(shield) = shield_str.as_str().parse::<u64>() {
+                if let Ok(shield) = shield_str.as_str().parse::<u32>() {
                     return EffectEvent::OnCooldown(Effect::Shield(
                         PlayerTarget::Player,
                         DerivedValue::Constant(shield),
@@ -66,14 +66,14 @@ impl EffectEvent {
         }
         if let Some(captures) = EFFECT_HEAL.captures(tooltip) {
             if let Some(heal_str) = captures.get(1) {
-                if let Ok(heal) = heal_str.as_str().parse::<u64>() {
+                if let Ok(heal) = heal_str.as_str().parse::<u32>() {
                     return EffectEvent::OnCooldown(Effect::Heal(PlayerTarget::Player, heal));
                 }
             }
         }
         if let Some(captures) = EFFECT_DEAL_DAMAGE.captures(tooltip) {
             if let Some(damage_str) = captures.get(1) {
-                if let Ok(damage) = damage_str.as_str().parse::<u64>() {
+                if let Ok(damage) = damage_str.as_str().parse::<u32>() {
                     return EffectEvent::OnCooldown(Effect::DealDamage(
                         PlayerTarget::Opponent,
                         damage,

@@ -5,7 +5,9 @@ use regex::Regex;
 
 use crate::v2_0_0::{Tag, Tier};
 
-use super::{CardTarget, Condition, EffectValue, ObtainedEffectItem, PlayerTarget};
+use super::{
+    CardTarget, Condition, EffectValue, ObtainedEffectItem, PlayerTarget, TargetCondition,
+};
 
 lazy_static::lazy_static! {
     pub static ref EFFECT_GET_ITEMS_REGEX: Regex = Regex::new(r"^get\s+(a|\d+)\s+([\p{L} ]+)\.?$").unwrap();
@@ -21,28 +23,34 @@ lazy_static::lazy_static! {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum DerivedValueTarget {
-    AdjacentItems,
+pub enum CardDerivedProperty {
+    Value,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum DerivedValueProperty {
-    Value,
+pub enum PlayerDerivedProperty {
+    MaximumHealth,
+    CurrentHealth,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum DerivedValue<T> {
     Constant(T),
-    From(DerivedValueTarget, DerivedValueProperty, f32),
+    FromCard(CardTarget, CardDerivedProperty, f32),
+    FromPlayer(CardTarget, PlayerDerivedProperty, f32),
 }
 
 impl<T: std::fmt::Display> std::fmt::Display for DerivedValue<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             DerivedValue::Constant(i) => write!(f, "DerivedValue::Constant({i})"),
-            DerivedValue::From(i, j, k) => write!(
+            DerivedValue::FromCard(i, j, k) => write!(
                 f,
-                "DerivedValue::From(DerivedValueTarget::{i:?}, DerivedValueProperty::{j:?}, {k:.2})"
+                "DerivedValue::FromCard({i}, CardDerivedProperty::{j:?}, {k:.2})"
+            ),
+            DerivedValue::FromPlayer(i, j, k) => write!(
+                f,
+                "DerivedValue::FromPlayer({i}, PlayerDerivedProperty::{j:?}, {k:.2})"
             ),
         }
     }
@@ -53,27 +61,27 @@ pub enum Effect {
     Raw(String),
     GainShield(CardTarget, EffectValue<f64>),
     CooldownReduction(CardTarget, EffectValue<f64>),
-    IncreaseDamage(CardTarget, EffectValue<u64>),
+    IncreaseDamage(CardTarget, EffectValue<u32>),
     Freeze(CardTarget, f64),
     Slow(CardTarget, f64),
     Haste(CardTarget, f64),
-    Reload(CardTarget, u64),
+    Reload(CardTarget, u32),
     DamageImmunity(f64),
     Charge(CardTarget, f64),
     Destroy(CardTarget),
-    Burn(PlayerTarget, u64),
-    Heal(PlayerTarget, u64),
-    Shield(PlayerTarget, DerivedValue<u64>),
-    Poison(PlayerTarget, u64),
-    GainGold(PlayerTarget, u64),
-    DealDamage(PlayerTarget, u64),
+    Burn(PlayerTarget, u32),
+    Heal(PlayerTarget, u32),
+    Shield(PlayerTarget, DerivedValue<u32>),
+    Poison(PlayerTarget, u32),
+    GainGold(PlayerTarget, u32),
+    DealDamage(PlayerTarget, u32),
     UseCard(CardTarget),
-    Upgrade(Tier, CardTarget),
-    PermanentMaxHealthIncrease(EffectValue<u64>),
-    IncreaseMaxAmmo(CardTarget, EffectValue<u64>),
+    Upgrade(CardTarget, Tier),
+    PermanentMaxHealthIncrease(EffectValue<u32>),
+    IncreaseMaxAmmo(CardTarget, EffectValue<u32>),
     ObtainItem(Vec<ObtainedEffectItem>),
-    SpendGoldForEffect(u64, Box<Effect>),
-    GainXp(PlayerTarget, u64),
+    SpendGoldForEffect(u32, Box<Effect>),
+    GainXp(PlayerTarget, u32),
     ConditionalMatchItem(CardTarget, Box<Effect>),
     MultiEffect(Vec<Effect>),
 }
@@ -114,7 +122,7 @@ impl std::fmt::Display for Effect {
                 write!(f, "Effect::PermanentMaxHealthIncrease({i})")
             }
             Effect::IncreaseMaxAmmo(i, j) => write!(f, "Effect::IncreaseMaxAmmo({i}, {j})"),
-            Effect::Upgrade(i, j) => write!(f, "Effect::Upgrade(Tier::{i:?}, {j})"),
+            Effect::Upgrade(i, j) => write!(f, "Effect::Upgrade({i}, Tier::{j:?})"),
             Effect::GainXp(i, j) => write!(f, "Effect::GainXp({i}, {j})"),
             Effect::MultiEffect(effects) => {
                 let effect_str = effects
@@ -138,7 +146,7 @@ impl Effect {
             if let (Some(count), Some(name)) = (captures.get(1), captures.get(2)) {
                 let count = match [count.as_str()] {
                     ["a"] => 1,
-                    [count_str] if let Ok(count) = count_str.parse::<u64>() => count,
+                    [count_str] if let Ok(count) = count_str.parse::<u32>() => count,
                     [..] => return Effect::Raw(tooltip.to_string()),
                 };
                 let name = name.as_str().to_title_case();
@@ -175,21 +183,21 @@ impl Effect {
         }
         if let Some(captures) = EFFECT_POISON_SELF.captures(tooltip) {
             if let Some(poison_str) = captures.get(1) {
-                if let Ok(poison) = poison_str.as_str().parse::<u64>() {
+                if let Ok(poison) = poison_str.as_str().parse::<u32>() {
                     return Effect::Poison(PlayerTarget::Player, poison);
                 }
             }
         }
         if let Some(captures) = EFFECT_GAIN_PERMANENT_MAX_HP.captures(tooltip) {
             if let Some(amount_str) = captures.get(1) {
-                if let Ok(amount) = amount_str.as_str().parse::<u64>() {
+                if let Ok(amount) = amount_str.as_str().parse::<u32>() {
                     return Effect::PermanentMaxHealthIncrease(EffectValue::Flat(amount));
                 }
             }
         }
         if let Some(captures) = EFFECT_SPEND_GOLD_FOR_EFFECT.captures(tooltip) {
             if let (Some(gold_str), Some(effect_str)) = (captures.get(1), captures.get(2)) {
-                if let Ok(gold) = gold_str.as_str().parse::<u64>() {
+                if let Ok(gold) = gold_str.as_str().parse::<u32>() {
                     return Effect::SpendGoldForEffect(
                         gold,
                         Box::new(Effect::from_tooltip_str(effect_str.as_str())),
@@ -200,49 +208,58 @@ impl Effect {
 
         if let Some(captures) = EFFECT_GAIN_GOLD.captures(tooltip) {
             if let Some(gold_str) = captures.get(1) {
-                if let Ok(gold) = gold_str.as_str().parse::<u64>() {
+                if let Ok(gold) = gold_str.as_str().parse::<u32>() {
                     return Effect::GainGold(PlayerTarget::Player, gold);
                 }
             }
         }
         if let Some(captures) = EFFECT_THIS_GAINS_MAX_AMMO.captures(tooltip) {
             if let Some(amount_str) = captures.get(1) {
-                if let Ok(amount) = amount_str.as_str().parse::<u64>() {
-                    return Effect::IncreaseMaxAmmo(CardTarget::This, EffectValue::Flat(amount));
+                if let Ok(amount) = amount_str.as_str().parse::<u32>() {
+                    return Effect::IncreaseMaxAmmo(
+                        CardTarget(1, TargetCondition::IsSelf),
+                        EffectValue::Flat(amount),
+                    );
                 }
             }
         }
         if EFFECT_UPGRADE_RANDOM_PIGGLE.is_match(tooltip) {
             return Effect::Upgrade(
+                CardTarget(1, TargetCondition::NameIncludes(" piggle".to_string())),
                 Tier::Bronze,
-                CardTarget::NameIncludesString(" piggle".to_string()),
             );
         }
         // if let Some(captures) = EFFECT_UPGRADE_LOWER_TIER_TAGGED.captures(tooltip) {
         //     if let Some(tag_str) = captures.get(1) {
         //         if let Ok(tag) = Tag::from_str(tag_str.as_str()) {
-        //             let condition = TargetCondition::OwnedByPlayer(PlayerTarget::Player)
+        //             let condition = TargetCondition::HasOwner(PlayerTarget::Player)
         //                 & C
-        //             let condition = CardTargetCondition::And(
-        //                 CardTargetCondition::IsOwn.into(),
-        //                 CardTargetCondition::And(
-        //                     CardTargetCondition::HasTag(tag).into(),
-        //                     CardTargetCondition::IsLowerTierThanSelf.into(),
+        //             let condition = TargetConditionCondition::And(
+        //                 TargetConditionCondition::IsOwn.into(),
+        //                 TargetConditionCondition::And(
+        //                     TargetConditionCondition::HasTag(tag).into(),
+        //                     TargetConditionCondition::IsLowerTierThanSelf.into(),
         //                 )
         //                 .into(),
         //             );
-        //             return Effect::Upgrade(Tier::Bronze, CardTarget::Conditional(condition));
+        //             return Effect::Upgrade(Tier::Bronze, TargetCondition::Conditional(condition));
         //         }
         //     }
         // }
         if tooltip == "destroy an item for the fight." {
-            return Effect::Destroy(CardTarget::Opponent);
+            return Effect::Destroy(CardTarget(
+                1,
+                TargetCondition::HasOwner(PlayerTarget::Opponent),
+            ));
         }
         if tooltip == "gain 1 xp. if you had wanted poster in play, gain 1 additional xp." {
             return Effect::MultiEffect(vec![
                 Effect::GainXp(PlayerTarget::Player, 1),
                 Effect::ConditionalMatchItem(
-                    CardTarget::NameIncludesString("wanted poster".to_string()),
+                    CardTarget(
+                        1,
+                        TargetCondition::NameIncludes("wanted poster".to_string()),
+                    ),
                     Effect::GainXp(PlayerTarget::Player, 1).into(),
                 ),
             ]);

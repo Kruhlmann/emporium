@@ -1,5 +1,6 @@
 pub mod card;
 pub mod combat_card_encounter;
+pub mod data;
 pub mod enchant;
 pub mod encounter;
 pub mod hero;
@@ -12,6 +13,7 @@ pub mod tooltip;
 
 pub use card::*;
 pub use combat_card_encounter::*;
+pub use data::*;
 pub use enchant::*;
 pub use encounter::*;
 pub use hero::*;

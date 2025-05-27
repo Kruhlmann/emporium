@@ -13,6 +13,10 @@ impl Size {
             Size::Large => 3,
         }
     }
+
+    pub fn base_cost(&self) -> u32 {
+        self.board_spaces() as u32 * 2
+    }
 }
 
 impl TryFrom<&str> for Size {

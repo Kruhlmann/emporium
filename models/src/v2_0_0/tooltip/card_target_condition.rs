@@ -1,4 +1,4 @@
-use crate::v2_0_0::{Card, Size, Tag};
+use crate::v2_0_0::{Size, Tag};
 
 use super::PlayerTarget;
 
@@ -7,45 +7,17 @@ pub enum TargetCondition {
     Always,
     Never,
     IsSelf,
-    OwnedByPlayer(PlayerTarget),
+    Adjacent,
+    HasCooldown,
+    HasOwner(PlayerTarget),
     HasTag(Tag),
-    IsOfSize(Size),
+    HasSize(Size),
+    NameIncludes(String),
 
     And(Box<TargetCondition>, Box<TargetCondition>),
     Or(Box<TargetCondition>, Box<TargetCondition>),
     Not(Box<TargetCondition>),
     Raw(String),
-}
-
-impl Card {
-    pub fn matches(
-        &self,
-        condition: &TargetCondition,
-        card_owner: PlayerTarget,
-        target_candidate: &Card,
-    ) -> bool {
-        match condition {
-            TargetCondition::Always => true,
-            TargetCondition::Never => false,
-            TargetCondition::IsSelf => *self == *target_candidate,
-            TargetCondition::OwnedByPlayer(condition_owner) => card_owner == *condition_owner,
-            TargetCondition::HasTag(tag) => self.tags.iter().find(|t| *t == tag).is_some(),
-            TargetCondition::IsOfSize(size) => self.size == *size,
-            TargetCondition::And(a, b) => {
-                self.matches(a, card_owner, target_candidate)
-                    && self.matches(b, card_owner, target_candidate)
-            }
-            TargetCondition::Or(a, b) => {
-                self.matches(a, card_owner, target_candidate)
-                    || self.matches(b, card_owner, target_candidate)
-            }
-            TargetCondition::Not(a) => !self.matches(a, card_owner, target_candidate),
-            TargetCondition::Raw(s) => {
-                eprintln!("skipping raw target condition: '{s}'");
-                false
-            }
-        }
-    }
 }
 
 impl std::ops::BitAnd for TargetCondition {
@@ -87,14 +59,19 @@ impl std::fmt::Display for TargetCondition {
             TargetCondition::Raw(i) => {
                 write!(f, "TargetCondition::Raw({i:?}.to_string())")
             }
+            TargetCondition::Adjacent => write!(f, "TargetCondition::Adjacent"),
+            TargetCondition::HasCooldown => write!(f, "TargetCondition::HasCooldown"),
             TargetCondition::Always => write!(f, "TargetCondition::Always"),
             TargetCondition::Never => write!(f, "TargetCondition::Never"),
             TargetCondition::IsSelf => write!(f, "TargetCondition::IsSelf"),
-            TargetCondition::OwnedByPlayer(i) => {
-                write!(f, "TargetCondition::OwnedByPlayer(PlayerTarget::{i:?})")
+            TargetCondition::HasOwner(i) => {
+                write!(f, "TargetCondition::HasOwner(PlayerTarget::{i:?})")
             }
-            TargetCondition::IsOfSize(i) => write!(f, "TargetCondition::IsOfSize(Size::{i:?})"),
+            TargetCondition::HasSize(i) => write!(f, "TargetCondition::HasSize(Size::{i:?})"),
             TargetCondition::Not(i) => write!(f, "TargetCondition::Not({i})"),
+            TargetCondition::NameIncludes(i) => {
+                write!(f, "TargetCondition::NameIncludes({i:?}.to_string())")
+            }
         }
     }
 }

@@ -365,7 +365,7 @@ impl CardSourceBuilder {
             }));
         }
 
-        let mut struct_metadata_list = Vec::new();
+        let mut struct_metadata_list = Vec::with_capacity(handles.len());
         for handle in handles {
             struct_metadata_list.push(handle.await??);
         }

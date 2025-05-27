@@ -21,7 +21,7 @@ use egui_file_dialog::FileDialog;
 use gamedata::v2_0_0::CONSTRUCT_CARD_BY_NAME;
 use image::{GenericImageView, ImageFormat};
 use models::v2_0_0::{PlayerTarget, Tier};
-use simulator::simulation::{
+use simulator::{
     CardModification, CardTemplate, DispatchableEvent, PlayerTemplate, Simulation,
     SimulationResult, SimulationSummary, SimulationTemplate,
 };
@@ -145,7 +145,7 @@ struct App {
 impl App {
     fn new() -> Self {
         let (texture_tx, texture_rx) = std::sync::mpsc::channel();
-        let mut cards_with_texture = Vec::new();
+        let mut cards_with_texture = Vec::with_capacity(CONSTRUCT_CARD_BY_NAME.len());
 
         for (_, construct) in CONSTRUCT_CARD_BY_NAME.iter() {
             cards_with_texture.push(construct().into());
@@ -156,14 +156,14 @@ impl App {
             texture_rx,
             texture_tx,
             cards_with_texture,
-            player_board: Vec::new(),
-            opponent_board: Vec::new(),
+            player_board: Vec::with_capacity(10),
+            opponent_board: Vec::with_capacity(10),
             sim_event_rx: None,
             sim_result_rx: None,
+            sim_running: false,
             sim_logs: Vec::new(),
             sim_warnings: Vec::new(),
             sim_errors: Vec::new(),
-            sim_running: false,
             sim_results: Vec::new(),
             sim_iterations: 1000,
             sim_completed: 0,
@@ -178,7 +178,7 @@ impl App {
                     Arc::new(|path| path.extension().unwrap_or_default() == "toml"),
                 )
                 .title("Select Simulation Template"),
-            loading_ids: HashSet::new(),
+            loading_ids: HashSet::with_capacity(CONSTRUCT_CARD_BY_NAME.len()),
         }
     }
 
@@ -637,6 +637,7 @@ impl App {
                                 DispatchableEvent::Error(msg) => self.sim_errors.push(msg),
                                 DispatchableEvent::Warning(msg) => self.sim_warnings.push(msg),
                                 DispatchableEvent::Log(msg) => self.sim_logs.push(msg),
+                                DispatchableEvent::CardFrozen(id, duration) => self.sim_logs.push(format!("Froze item {id} for {duration}")),
                                 DispatchableEvent::Tick => {},
                             }
                         }

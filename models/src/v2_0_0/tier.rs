@@ -28,4 +28,14 @@ impl Tier {
             Tier::Legendary => t.legendary,
         }
     }
+
+    pub fn scale_cost(self, cost: u32) -> u32 {
+        match self {
+            Tier::Bronze => cost,
+            Tier::Silver => cost * 2,
+            Tier::Gold => cost * 4,
+            Tier::Diamond => cost * 8,
+            Tier::Legendary => 50, // TODO hard coded
+        }
+    }
 }

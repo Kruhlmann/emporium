@@ -3,8 +3,8 @@ use regex::Regex;
 use crate::v2_0_0::{EffectValue, Tag};
 
 use super::{
-    CardTarget, Condition, DerivedValue, DerivedValueProperty, DerivedValueTarget, Effect,
-    EffectEvent, GlobalEvent, Modifier, PlayerTarget, TargetCondition,
+    CardDerivedProperty, CardTarget, Condition, DerivedValue, Effect, EffectEvent, GlobalEvent,
+    Modifier, PlayerTarget, TargetCondition,
 };
 
 lazy_static::lazy_static! {
@@ -88,35 +88,37 @@ impl Tooltip {
     fn from_when(tooltip: &str) -> anyhow::Result<Tooltip> {
         let effect_event = match tooltip {
             s if let Some(rest) = s.strip_prefix("when you use an adjacent item,") => {
-                EffectEvent::OnCardUsed(CardTarget::Adjacent, Effect::from_tooltip_str(rest))
+                EffectEvent::OnCardUsed(TargetCondition::Adjacent, Effect::from_tooltip_str(rest))
             }
             s if let Some(rest) = s.strip_prefix("when you use shield or heal,") => {
-                let cond = TargetCondition::OwnedByPlayer(PlayerTarget::Player)
-                    & (TargetCondition::HasTag(Tag::Heal) | TargetCondition::HasTag(Tag::Shield));
                 EffectEvent::OnCardUsed(
-                    CardTarget::Conditional(cond),
+                    TargetCondition::HasOwner(PlayerTarget::Player)
+                        & (TargetCondition::HasTag(Tag::Heal)
+                            | TargetCondition::HasTag(Tag::Shield)),
                     Effect::from_tooltip_str(rest),
                 )
             }
-            s if let Some(rest) = s.strip_prefix("when you crit,") => {
-                EffectEvent::OnCrit(CardTarget::Own, Effect::from_tooltip_str(rest))
-            }
+            s if let Some(rest) = s.strip_prefix("when you crit,") => EffectEvent::OnCrit(
+                TargetCondition::HasOwner(PlayerTarget::Player),
+                Effect::from_tooltip_str(rest),
+            ),
             s if let Some(rest) = s.strip_prefix("when your enemy uses an item,") => {
-                EffectEvent::OnCardUsed(CardTarget::Opponent, Effect::from_tooltip_str(rest))
+                EffectEvent::OnCardUsed(
+                    TargetCondition::HasOwner(PlayerTarget::Opponent),
+                    Effect::from_tooltip_str(rest),
+                )
             }
             s if let Some(rest) = s.strip_prefix("when you win a fight against a hero,") => {
                 EffectEvent::OnWinVersusHero(Effect::from_tooltip_str(rest))
             }
             s if let Some(rest) = s.strip_prefix("when you use a weapon,") => {
-                let cond = TargetCondition::OwnedByPlayer(PlayerTarget::Player)
-                    & TargetCondition::HasTag(Tag::Weapon);
                 EffectEvent::OnCardUsed(
-                    CardTarget::Conditional(cond),
+                    TargetCondition::HasOwner(PlayerTarget::Player),
                     Effect::from_tooltip_str(rest),
                 )
             }
             // s if let Some(rest) = s.strip_prefix("when you use another weapon,") => {
-            //     let cond = TargetCondition::OwnedByPlayer(PlayerTarget::Player)
+            //     let cond = TargetCondition::HasOwner(PlayerTarget::Player)
             //         & TargetCondition::HasTag(Tag::Weapon);
             //     // Note: replace "IsNotSelf" semantics with Not(OwnedBy(self)) if needed
             //     EffectEvent::OnCardUsed(
@@ -180,7 +182,15 @@ impl Tooltip {
         }
         if value.starts_with("slow all enemy items for") {
             return parse_numeric(value)
-                .map(|v| Effect::Slow(CardTarget::Opponent, v))
+                .map(|v| {
+                    Effect::Slow(
+                        CardTarget(
+                            usize::MAX,
+                            TargetCondition::HasOwner(PlayerTarget::Opponent),
+                        ),
+                        v,
+                    )
+                })
                 .map(EffectEvent::OnCooldown)
                 .map(Tooltip::When)
                 .unwrap_or(Tooltip::Raw(value.to_string()));
@@ -208,17 +218,26 @@ impl Tooltip {
         if value.starts_with("your other weapons gain") && value.ends_with("damage for the fight.")
         {
             return parse_numeric(value)
-                .map(|v: u64| {
-                    Effect::IncreaseDamage(CardTarget::OtherWeapons, EffectValue::Flat(v))
+                .map(|v: u32| {
+                    Effect::IncreaseDamage(
+                        CardTarget(
+                            usize::MAX,
+                            TargetCondition::HasOwner(PlayerTarget::Player)
+                                & TargetCondition::HasTag(Tag::Weapon),
+                        ),
+                        EffectValue::Flat(v),
+                    )
                 })
                 .map(EffectEvent::OnCooldown)
                 .map(Tooltip::When)
                 .unwrap_or(Tooltip::Raw(value.to_string()));
         }
         if let Some(rest) = value.strip_prefix("use ") {
-            let condition = TargetCondition::from_str(&rest)
-                & TargetCondition::OwnedByPlayer(PlayerTarget::Player);
-            let effect = Effect::UseCard(CardTarget::Conditional(condition));
+            let effect = Effect::UseCard(CardTarget(
+                1,
+                TargetCondition::from_str(&rest)
+                    & TargetCondition::HasOwner(PlayerTarget::Player),
+            ));
             return Tooltip::When(EffectEvent::OnCooldown(effect));
         }
         if value.starts_with("when") {
@@ -271,9 +290,9 @@ impl Tooltip {
             // TODO: change to percentage
             return Tooltip::When(EffectEvent::OnCooldown(Effect::Shield(
                 PlayerTarget::Opponent,
-                DerivedValue::From(
-                    DerivedValueTarget::AdjacentItems,
-                    DerivedValueProperty::Value,
+                DerivedValue::FromCard(
+                    CardTarget(2, TargetCondition::Adjacent),
+                    CardDerivedProperty::Value,
                     1.0,
                 ),
             )));
@@ -286,7 +305,7 @@ impl Tooltip {
                 ) {
                     (Ok(n), Ok(m)) => {
                         return Tooltip::When(EffectEvent::OnCooldown(Effect::Haste(
-                            CardTarget::NOwn(n),
+                            CardTarget(n, TargetCondition::HasOwner(PlayerTarget::Player)),
                             m,
                         )));
                     }
@@ -302,7 +321,7 @@ impl Tooltip {
                 ) {
                     (Ok(n), Ok(m)) => {
                         return Tooltip::When(EffectEvent::OnCooldown(Effect::Slow(
-                            CardTarget::NOpponent(n),
+                            CardTarget(n, TargetCondition::HasOwner(PlayerTarget::Opponent)),
                             m,
                         )));
                     }
@@ -318,7 +337,7 @@ impl Tooltip {
                 ) {
                     (Ok(n), Ok(m)) => {
                         return Tooltip::When(EffectEvent::OnCooldown(Effect::Freeze(
-                            CardTarget::NOpponent(n),
+                            CardTarget(n, TargetCondition::HasOwner(PlayerTarget::Opponent)),
                             m,
                         )));
                     }
@@ -337,7 +356,12 @@ impl Tooltip {
                 ) {
                     (Ok(n), Ok(m), Ok(size)) => {
                         return Tooltip::When(EffectEvent::OnCooldown(Effect::Freeze(
-                            CardTarget::NOfSizeOpponent(n, size),
+                            CardTarget(
+                                n,
+                                TargetCondition::HasOwner(PlayerTarget::Opponent)
+                                    & TargetCondition::HasSize(size)
+                                    & TargetCondition::HasCooldown,
+                            ),
                             m,
                         )));
                     }
@@ -347,7 +371,7 @@ impl Tooltip {
         }
         if let Some(capture) = STATIC_WEAPON_DAMAGE.captures(value) {
             if let Some(damage_str) = capture.get(1) {
-                if let Ok(damage) = damage_str.as_str().parse::<u64>() {
+                if let Ok(damage) = damage_str.as_str().parse::<u32>() {
                     return Tooltip::StaticModifier(Modifier::WeaponDamage(EffectValue::Flat(
                         damage,
                     )));

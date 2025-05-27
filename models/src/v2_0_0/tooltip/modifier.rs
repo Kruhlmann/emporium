@@ -3,12 +3,12 @@ use super::EffectValue;
 #[derive(Debug, Clone, PartialEq)]
 pub enum Modifier {
     DoubleCritDamage,
-    WeaponDamage(EffectValue<u64>),
-    LessDamageTaken(EffectValue<u64>),
-    CritChance(u64),
+    WeaponDamage(EffectValue<u32>),
+    LessDamageTaken(EffectValue<u32>),
+    CritChance(u32),
     Cooldown(f64),
-    Ammo(u64),
-    Multicast(u64),
+    Ammo(u32),
+    Multicast(u32),
     Radiant,
 }
 

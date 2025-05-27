@@ -65,7 +65,7 @@ impl Card {
     }
 
     pub fn available_tiers(&self) -> Vec<Tier> {
-        let mut tier_range: Vec<Tier> = Vec::new();
+        let mut tier_range: Vec<Tier> = Vec::with_capacity(5);
         if !self.tiers.bronze.is_empty() {
             tier_range.push(Tier::Bronze);
         }
