@@ -356,7 +356,7 @@ impl App {
                                     ui.label(temp.card.name);
                                     ui.separator();
                                     ui.horizontal_wrapped(|ui| {
-                                        for tag in &temp.card.tags {
+                                        for tag in temp.card.tags.iter() {
                                             ui.label(format!("({tag:?})"));
                                         }
                                     });
@@ -385,7 +385,7 @@ impl App {
                             |ui| {
                                 ui.label(temp.card.name);
                                 ui.horizontal_wrapped(|ui| {
-                                    for tag in &temp.card.tags {
+                                    for tag in temp.card.tags.iter() {
                                         ui.label(format!("({tag:?})"));
                                     }
                                 });

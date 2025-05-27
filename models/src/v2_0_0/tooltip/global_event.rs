@@ -12,3 +12,9 @@ impl std::fmt::Display for GlobalEvent {
         }
     }
 }
+
+impl AsRef<GlobalEvent> for GlobalEvent {
+    fn as_ref(&self) -> &GlobalEvent {
+        &self
+    }
+}

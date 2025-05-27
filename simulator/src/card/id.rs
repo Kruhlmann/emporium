@@ -9,6 +9,10 @@ impl GlobalCardId {
     pub fn new() -> Self {
         Self(COUNTER.fetch_add(1, Ordering::SeqCst))
     }
+
+    pub fn reset() {
+        COUNTER.store(0, Ordering::SeqCst);
+    }
 }
 
 impl Default for GlobalCardId {

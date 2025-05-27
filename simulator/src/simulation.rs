@@ -1,5 +1,6 @@
-use std::{collections::HashMap, time::Instant};
+use std::time::Instant;
 
+use indexmap::IndexMap;
 use models::v2_0_0::{
     CardDerivedProperty, DerivedValue, Enchantment, PlayerTarget, TargetCondition,
 };
@@ -18,7 +19,7 @@ pub struct Simulation {
     pub source: Option<String>,
     pub event_sender: Option<std::sync::mpsc::Sender<DispatchableEvent>>,
     pub stdout_enabled: bool,
-    pub cards: HashMap<GlobalCardId, Card>,
+    pub cards: IndexMap<GlobalCardId, Card>,
 }
 
 impl TryFrom<SimulationTemplate> for Simulation {
@@ -26,7 +27,7 @@ impl TryFrom<SimulationTemplate> for Simulation {
 
     fn try_from(template: SimulationTemplate) -> Result<Self, Self::Error> {
         let mut position: u8 = 0;
-        let mut player_cards: HashMap<GlobalCardId, Card> = HashMap::new();
+        let mut player_cards: IndexMap<GlobalCardId, Card> = IndexMap::new();
         for template in &template.player.card_templates {
             let id = GlobalCardId::default();
             let card: Card = template
@@ -43,7 +44,7 @@ impl TryFrom<SimulationTemplate> for Simulation {
         }
 
         let mut position: u8 = 0;
-        let mut opponent_cards: HashMap<GlobalCardId, Card> = HashMap::new();
+        let mut opponent_cards: IndexMap<GlobalCardId, Card> = IndexMap::new();
         for template in &template.opponent.card_templates {
             let id = GlobalCardId::default();
             let card: Card = template
@@ -189,14 +190,6 @@ impl Simulation {
                 if let Some(card) = self.cards.get(source_id) {
                     let r = rng.random::<f64>();
                     let did_crit = card.crit_chance.as_fraction() < r;
-                    eprintln!("CRIT {did_crit} {r} {}", card.crit_chance.as_fraction());
-                    eprintln!("CRIT {did_crit}");
-                    eprintln!("CRIT {did_crit}");
-                    eprintln!("CRIT {did_crit}");
-                    eprintln!("CRIT {did_crit}");
-                    eprintln!("CRIT {did_crit}");
-                    eprintln!("CRIT {did_crit}");
-                    eprintln!("CRIT {did_crit}");
                     let dmg = if did_crit {
                         // TODO what about increased crit dmg
                         *dmg + *dmg
@@ -212,12 +205,14 @@ impl Simulation {
                 }
             }
             TaggedCombatEvent(owner, CombatEvent::ApplyBurn(player_target, burn, ..)) => {
+                // TODO burn crit
                 match owner == player_target {
                     true => self.player.burn(*burn),
                     false => self.opponent.burn(*burn),
                 }
             }
             TaggedCombatEvent(owner, CombatEvent::ApplyPoison(player_target, poison, ..)) => {
+                // TODO poison crit
                 match owner == player_target {
                     true => self.player.poison(*poison),
                     false => self.opponent.poison(*poison),
@@ -227,6 +222,7 @@ impl Simulation {
                 owner,
                 CombatEvent::ApplyShield(player_target, shield, source_id),
             ) => {
+                // TODO shield crit
                 let shield_value = match *shield {
                     DerivedValue::Constant(s) => s,
                     _ => self.derive_value(shield.clone(), source_id)? as u32,
@@ -252,21 +248,19 @@ impl Simulation {
                     .collect();
                 let to_freeze = target.number_of_targets();
                 self.dispatch_log(format!("Freeze {to_freeze:?}"));
-                let (radiant_ids, mut eligible_ids): (Vec<_>, Vec<_>) =
-                    candidate_ids.iter().partition(|id| {
-                        self.cards.get(id).map_or(false, |card| {
-                            card.modifications.iter().any(|m| {
+                let mut eligible_ids: Vec<GlobalCardId> = candidate_ids
+                    .iter()
+                    .filter_map(|&id| match self.cards.get(&id) {
+                        Some(card)
+                            if card.modifications.iter().any(|m| {
                                 matches!(m, CardModification::Enchanted(Enchantment::Radiant))
-                            })
-                        })
-                    });
-
-                // TODO: remove
-                for id in radiant_ids {
-                    self.dispatch_log(format!(
-                        "ignoring target {id} for freeze condition as it is radiant"
-                    ));
-                }
+                            }) =>
+                        {
+                            None
+                        }
+                        _ => Some(id),
+                    })
+                    .collect();
 
                 if eligible_ids.len() > to_freeze {
                     eligible_ids.shuffle(rng);

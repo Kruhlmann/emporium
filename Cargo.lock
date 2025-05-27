@@ -3835,6 +3835,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "gamedata",
+ "indexmap",
  "lazy_static",
  "models",
  "rand 0.9.1",

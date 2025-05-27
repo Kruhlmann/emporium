@@ -68,8 +68,8 @@ impl TryFrom<&serde_json::Value> for JsonCardFields {
             })
             .collect::<anyhow::Result<Vec<String>>>()?
             .join(",\n                ");
-        let enchantments = enchantment_list // TODO: don't have it on cooldown - need custom
-            // enchant parser
+        let enchantments = enchantment_list
+            // TODO: don't have it on cooldown - need custom enchant parser
             .as_array()
             .ok_or(anyhow::anyhow!("invalid enchantment list"))?
             .iter()
@@ -131,7 +131,7 @@ impl JsonCardFields {
 
     pub fn to_inner_source(&self) -> String {
         format!(
-            r#"Card {{ id: "{}", name: "{}", starting_tier: Tier::{}, size: Size::{}, tiers: TieredValue {{ bronze: vec![{}], silver: vec![{}], gold: vec![{}], diamond: vec![{}], legendary: vec![{}], }}, tags: vec![{}], hidden_tags: vec![{}], custom_tags: vec![{}], heroes: vec![{}], enchantments: vec![ {} ], unified_tooltips: vec!{:?}, pack_id: PackId::{}, combat_encounters: vec![{}], }}"#,
+            r#"Card {{ id: "{}", name: "{}", starting_tier: Tier::{}, size: Size::{}, tiers: TieredValue {{ bronze: std::sync::Arc::new([{}]), silver: std::sync::Arc::new([{}]), gold: std::sync::Arc::new([{}]), diamond: std::sync::Arc::new([{}]), legendary: std::sync::Arc::new([{}]), }}, tags: std::sync::Arc::new([{}]), hidden_tags: std::sync::Arc::new([{}]), custom_tags: std::sync::Arc::new([{}]), heroes: std::sync::Arc::new([{}]), enchantments: std::sync::Arc::new([{}]), unified_tooltips: std::sync::Arc::new({:?}), pack_id: PackId::{}, combat_encounters: std::sync::Arc::new([{}]), }}"#,
             self.id,
             self.name,
             self.starting_tier,

@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use super::{
     CardCombatEncounter, CardEnchantment, Hero, PackId, Size, Tag, Tier, TieredValue, Tooltip,
 };
@@ -7,16 +9,16 @@ pub struct Card {
     pub id: &'static str,
     pub name: &'static str,
     pub starting_tier: Tier,
-    pub tiers: TieredValue<Vec<Tooltip>>,
-    pub tags: Vec<Tag>,
-    pub hidden_tags: Vec<Tag>,
-    pub custom_tags: Vec<Tag>,
+    pub tiers: TieredValue<Arc<[Tooltip]>>,
+    pub tags: Arc<[Tag]>,
+    pub hidden_tags: Arc<[Tag]>,
+    pub custom_tags: Arc<[Tag]>,
     pub size: Size,
-    pub heroes: Vec<Hero>,
-    pub enchantments: Vec<CardEnchantment>,
-    pub unified_tooltips: Vec<&'static str>,
+    pub heroes: Arc<[Hero]>,
+    pub enchantments: Arc<[CardEnchantment]>,
+    pub unified_tooltips: Arc<[&'static str]>,
     pub pack_id: PackId,
-    pub combat_encounters: Vec<CardCombatEncounter>,
+    pub combat_encounters: Arc<[CardCombatEncounter]>,
 }
 
 #[derive(Debug, Clone)]
