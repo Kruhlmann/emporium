@@ -8,6 +8,15 @@ pub struct SimulationTemplate {
     pub opponent: PlayerTemplate,
     #[serde(default)]
     pub seed: Option<u64>,
-    #[serde(skip, default)]
-    pub source: Option<String>,
+}
+
+impl SimulationTemplate {
+    pub fn invert(other: &SimulationTemplate) -> SimulationTemplate {
+        let other = other.clone();
+        SimulationTemplate {
+            player: other.opponent,
+            opponent: other.player,
+            seed: other.seed,
+        }
+    }
 }

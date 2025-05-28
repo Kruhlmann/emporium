@@ -277,7 +277,7 @@ impl Tooltip {
         if value == "shield equal to the value of the adjacent items." {
             // TODO: change to percentage
             return Tooltip::When(EffectEvent::OnCooldown(Effect::Shield(
-                PlayerTarget::Opponent,
+                PlayerTarget::Player,
                 DerivedValue::FromCard(
                     CardTarget(2, TargetCondition::Adjacent),
                     CardDerivedProperty::Value,

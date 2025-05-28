@@ -22,7 +22,9 @@ lazy_static::lazy_static! {
     pub static ref EFFECT_UPGRADE_LOWER_TIER_TAGGED: Regex = Regex::new(r"^upgrade a ([\p{L} ]+) of a lower tier\.?$").unwrap();
     pub static ref EFFECT_BURN_FROM_DAMAGE: Regex = Regex::new(r"burn equal to (\d+)% of this item's damage.").unwrap();
     pub static ref EFFECT_HEAL_FROM_DAMAGE: Regex = Regex::new(r"heal equal to (\d+)% of this item's damage.").unwrap();
+    pub static ref EFFECT_HEAL_FROM_DAMAGE_FULL: Regex = Regex::new(r"heal equal to this item's damage.").unwrap();
     pub static ref EFFECT_SHIELD_FROM_DAMAGE: Regex = Regex::new(r"shield equal to (\d+)% of this item's damage.").unwrap();
+    pub static ref EFFECT_SHIELD_FROM_DAMAGE_FULL: Regex = Regex::new(r"shield equal to this item's damage.").unwrap();
     pub static ref EFFECT_POISON_FROM_DAMAGE: Regex = Regex::new(r"poison equal to (\d+)% of this item's damage.").unwrap();
 }
 
@@ -230,7 +232,7 @@ impl Effect {
                     .map(Percentage::from_percentage_value)
                 {
                     return Effect::Poison(
-                        PlayerTarget::Player,
+                        PlayerTarget::Opponent,
                         DerivedValue::FromCard(
                             CardTarget(1, TargetCondition::IsSelf),
                             CardDerivedProperty::Damage,
@@ -260,6 +262,17 @@ impl Effect {
             }
         }
 
+        if let Some(..) = EFFECT_SHIELD_FROM_DAMAGE_FULL.captures(tooltip) {
+            return Effect::Shield(
+                PlayerTarget::Player,
+                DerivedValue::FromCard(
+                    CardTarget(1, TargetCondition::IsSelf),
+                    CardDerivedProperty::Damage,
+                    1.0,
+                ),
+            );
+        }
+
         if let Some(captures) = EFFECT_HEAL_FROM_DAMAGE.captures(tooltip) {
             if let Some(heal_str) = captures.get(1) {
                 if let Ok(heal_pct) = heal_str
@@ -279,6 +292,17 @@ impl Effect {
             }
         }
 
+        if let Some(..) = EFFECT_HEAL_FROM_DAMAGE_FULL.captures(tooltip) {
+            return Effect::Heal(
+                PlayerTarget::Player,
+                DerivedValue::FromCard(
+                    CardTarget(1, TargetCondition::IsSelf),
+                    CardDerivedProperty::Damage,
+                    1.0,
+                ),
+            );
+        }
+
         if let Some(captures) = EFFECT_BURN_FROM_DAMAGE.captures(tooltip) {
             if let Some(burn_str) = captures.get(1) {
                 if let Ok(burn_pct) = burn_str
@@ -287,7 +311,7 @@ impl Effect {
                     .map(Percentage::from_percentage_value)
                 {
                     return Effect::Burn(
-                        PlayerTarget::Player,
+                        PlayerTarget::Opponent,
                         DerivedValue::FromCard(
                             CardTarget(1, TargetCondition::IsSelf),
                             CardDerivedProperty::Damage,

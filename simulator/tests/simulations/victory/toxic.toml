@@ -1,0 +1,14 @@
+[player]
+health = 1000
+
+[[player.cards]]
+name = "Fang"
+tier = "Diamond"
+modifications = [{ Enchanted = "Toxic" }]
+
+[opponent]
+health = 1000
+
+[[opponent.cards]]
+name = "Fang"
+tier = "Diamond"

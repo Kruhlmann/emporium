@@ -27,7 +27,18 @@ impl CardTemplate {
                 .get(self.name.as_str())
                 .ok_or(anyhow::anyhow!("unknown card {:?}", &self.name))?;
         let inner = create_item();
-        let tooltips = self.tier.select(inner.tiers.clone());
+        // TODO optimize
+        let mut tooltips: Vec<Tooltip> = self
+            .tier
+            .select(inner.tiers.clone())
+            .iter()
+            .cloned()
+            .collect();
+        for derived_tooltips in self.modifications.iter().map(|m| m.derive_tooltips(&inner)) {
+            for tooltip in derived_tooltips.into_iter() {
+                tooltips.push(tooltip.clone())
+            }
+        }
         if tooltips.len() == 0 {
             anyhow::bail!("no tooltips on card {} of tier {:?}", self.name, self.tier);
         }
@@ -55,6 +66,11 @@ impl CardTemplate {
                 _ => None,
             })
             .unwrap_or_default();
+
+        eprintln!(
+            "Register card {}<@{position}> with id {id} :: {tooltips:?}",
+            inner.name
+        );
 
         Ok(Card {
             inner,

@@ -17,7 +17,7 @@ impl PlayerTemplate {
     pub fn create_player(self, card_ids: Vec<GlobalCardId>) -> anyhow::Result<Player> {
         Ok(Player {
             health: PlayerHealth(self.health.try_into()?, self.health),
-            shield: 0,
+            shield_stacks: 0,
             poison_stacks: 0,
             burn_stacks: 0,
             regeneration_stacks: 0,

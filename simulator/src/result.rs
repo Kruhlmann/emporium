@@ -4,7 +4,6 @@ use crate::{Player, SimulationDrawType, TaggedCombatEvent};
 
 #[derive(Debug)]
 pub struct SimulationResultInner {
-    pub source: Option<String>,
     pub events: Vec<TaggedCombatEvent>,
     pub duration: Duration,
     pub player: Player,
@@ -40,24 +39,16 @@ impl SimulationResult {
 impl std::fmt::Display for SimulationResult {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let inner = self.inner_ref();
-        let source_str = inner
-            .source
-            .as_ref()
-            .map(|s| format!(" [{s}] "))
-            .unwrap_or("".to_string());
         let header = match self {
             SimulationResult::Victory(..) => {
-                format!("[{:?}]{source_str} Victory", inner.duration)
+                format!("[{:?}] Victory", inner.duration)
             }
-            SimulationResult::Defeat(..) => format!("[{:?}]{source_str} Defeat", inner.duration),
+            SimulationResult::Defeat(..) => format!("[{:?}] Defeat", inner.duration),
             SimulationResult::Draw(SimulationDrawType::Timeout, ..) => {
-                format!("[{:?}]{source_str} Draw by timeout", inner.duration)
+                format!("[{:?}] Draw by timeout", inner.duration)
             }
             SimulationResult::Draw(SimulationDrawType::SimultaneousDefeat, ..) => {
-                format!(
-                    "[{:?}]{source_str} Draw by simultaneous defeat",
-                    inner.duration,
-                )
+                format!("[{:?}] Draw by simultaneous defeat", inner.duration,)
             }
         };
         write!(f, "{header}")

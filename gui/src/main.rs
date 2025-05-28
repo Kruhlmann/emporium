@@ -608,7 +608,6 @@ impl App {
                                     card_templates: opponent_cards,
                                     skill_templates: vec![],
                                 }, // TODO: SKILLS!
-                                source: None,
                                 seed: None,
                             };
                             let sim_template = Arc::new(sim_template);

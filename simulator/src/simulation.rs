@@ -16,7 +16,6 @@ use crate::{
 pub struct Simulation {
     pub player: Player,
     pub opponent: Player,
-    pub source: Option<String>,
     pub event_sender: Option<std::sync::mpsc::Sender<DispatchableEvent>>,
     pub stdout_enabled: bool,
     pub cards: IndexMap<GlobalCardId, Card>,
@@ -69,7 +68,6 @@ impl TryFrom<SimulationTemplate> for Simulation {
             cards,
             player: template.player.create_player(player_card_ids)?,
             opponent: template.opponent.create_player(opponent_card_ids)?,
-            source: template.source,
             event_sender: None,
             stdout_enabled: false,
         })
@@ -224,6 +222,7 @@ impl Simulation {
                 owner,
                 CombatEvent::ApplyPoison(player_target, poison_derivable, source_id),
             ) => {
+                eprintln!("TAGGED POISON FROM {owner}");
                 // TODO poison crit
                 let poison = match poison_derivable {
                     DerivedValue::Constant(p) => *p,
@@ -243,13 +242,20 @@ impl Simulation {
                     DerivedValue::Constant(s) => s,
                     _ => self.derive_value(shield.clone(), source_id)? as u32,
                 };
-                let shield_target = match owner {
-                    PlayerTarget::Player => player_target,
-                    PlayerTarget::Opponent => &player_target.inverse(),
+                match owner == player_target {
+                    true => self.player.shield(shield_value),
+                    false => self.opponent.shield(shield_value),
+                }
+            }
+            TaggedCombatEvent(owner, CombatEvent::Heal(player_target, heal, source_id)) => {
+                // TODO heal crit
+                let heal_value = match *heal {
+                    DerivedValue::Constant(s) => s,
+                    _ => self.derive_value(heal.clone(), source_id)? as u32,
                 };
-                match shield_target {
-                    PlayerTarget::Player => self.player.shield(shield_value),
-                    PlayerTarget::Opponent => self.opponent.shield(shield_value),
+                match owner == player_target {
+                    true => self.player.heal(heal_value),
+                    false => self.opponent.heal(heal_value),
                 }
             }
             TaggedCombatEvent(.., CombatEvent::Freeze(target, duration, source_id)) => {
@@ -293,6 +299,11 @@ impl Simulation {
                     }
                 }
             }
+            // Keeping this is useful whenever new events are implemented
+            #[allow(unreachable_patterns)]
+            _ => self.dispatch_event(&DispatchableEvent::Warning(format!(
+                "Unable to apply event: {event:?}"
+            ))),
         }
         Ok(())
     }
@@ -303,6 +314,7 @@ impl Simulation {
         value: DerivedValue<u32>,
         source_id: &GlobalCardId,
     ) -> anyhow::Result<f32> {
+        let v = value.clone();
         match value {
             DerivedValue::Constant(..) => anyhow::bail!("constants do not need to be derived"),
             DerivedValue::FromCard(card_target, card_derived_property, modifier) => {
@@ -340,6 +352,7 @@ impl Simulation {
             }
             DerivedValue::FromPlayer(..) => todo!(),
         }
+        .inspect(|derived| self.dispatch_log(format!("Derived {derived:?} from {v:?}")))
     }
 
     pub fn get_exit_condition(
@@ -354,7 +367,6 @@ impl Simulation {
             return Some(SimulationResult::Draw(
                 SimulationDrawType::SimultaneousDefeat,
                 SimulationResultInner {
-                    source: self.source.clone(),
                     events: events.clone(),
                     duration: t_now - t_start,
                     player: self.player.clone(),
@@ -364,7 +376,6 @@ impl Simulation {
         }
         if self.opponent.health.current() <= 0 {
             return Some(SimulationResult::Victory(SimulationResultInner {
-                source: self.source.clone(),
                 events: events.clone(),
                 duration: t_now - t_start,
                 player: self.player.clone(),
@@ -373,7 +384,6 @@ impl Simulation {
         }
         if self.player.health.current() <= 0 {
             return Some(SimulationResult::Defeat(SimulationResultInner {
-                source: self.source.clone(),
                 events: events.clone(),
                 duration: t_now - t_start,
                 player: self.player.clone(),
@@ -384,12 +394,6 @@ impl Simulation {
     }
 
     pub fn run_once_with_rng(&mut self, mut rng: StdRng) -> SimulationResult {
-        for (id, card) in &self.cards {
-            self.dispatch_log(format!(
-                "registered card {}<@{}> with id {}",
-                card.inner.name, card.position, id
-            ));
-        }
         let t_start = Instant::now();
         let mut events = Vec::with_capacity(*SIMULATION_TICK_COUNT);
 
@@ -412,7 +416,6 @@ impl Simulation {
         SimulationResult::Draw(
             SimulationDrawType::Timeout,
             SimulationResultInner {
-                source: self.source.clone(),
                 events,
                 duration: Instant::now() - t_start,
                 player: self.player.clone(),

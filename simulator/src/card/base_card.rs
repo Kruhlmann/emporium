@@ -33,9 +33,9 @@ impl Card {
         if self.cooldown.0 > 0 {
             if self.cooldown_counter % self.cooldown.0 == 0 {
                 for effect in &self.cooldown_effects {
-                    let mut effect_events: Vec<CombatEvent> =
+                    let mut combat_events: Vec<CombatEvent> =
                         self.effect_to_combat_events(effect.clone());
-                    events.append(&mut effect_events);
+                    events.append(&mut combat_events);
                 }
             }
         }
@@ -108,9 +108,16 @@ impl Card {
                     self.id_for_simulation,
                 )]
             }
+            Effect::Heal(player_target, heal) => {
+                vec![CombatEvent::Heal(
+                    player_target,
+                    heal,
+                    self.id_for_simulation,
+                )]
+            }
             Effect::Shield(player_target, shield) => {
                 vec![CombatEvent::ApplyShield(
-                    player_target.inverse(),
+                    player_target,
                     shield,
                     self.id_for_simulation,
                 )]
@@ -123,7 +130,10 @@ impl Card {
                     self.id_for_simulation,
                 )]
             }
-            _ => vec![CombatEvent::Raw(format!("{value}"))],
+            ref effect => {
+                eprintln!("Refused to parse effect as combatevent {effect:?}");
+                vec![CombatEvent::Raw(format!("{value}"))]
+            }
         }
     }
 }

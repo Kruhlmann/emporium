@@ -15,6 +15,7 @@ pub enum CombatEvent {
     ApplyBurn(PlayerTarget, DerivedValue<u32>, GlobalCardId),
     ApplyPoison(PlayerTarget, DerivedValue<u32>, GlobalCardId),
     ApplyShield(PlayerTarget, DerivedValue<u32>, GlobalCardId),
+    Heal(PlayerTarget, DerivedValue<u32>, GlobalCardId),
     Freeze(CardTarget, GameTicks, GlobalCardId),
 }
 
