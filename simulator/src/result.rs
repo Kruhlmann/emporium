@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use crate::{Player, SimulationDrawType, TaggedCombatEvent};
+use crate::{CombatEvent, Player, SimulationDrawType, TaggedCombatEvent};
 
 #[derive(Debug)]
 pub struct SimulationResultInner {
@@ -39,18 +39,38 @@ impl SimulationResult {
 impl std::fmt::Display for SimulationResult {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let inner = self.inner_ref();
-        let header = match self {
+        let mut res = match self {
             SimulationResult::Victory(..) => {
-                format!("[{:?}] Victory", inner.duration)
+                format!("[{:?}] Victory\n", inner.duration)
             }
-            SimulationResult::Defeat(..) => format!("[{:?}] Defeat", inner.duration),
+            SimulationResult::Defeat(..) => format!("[{:?}] Defeat\n", inner.duration),
             SimulationResult::Draw(SimulationDrawType::Timeout, ..) => {
                 format!("[{:?}] Draw by timeout", inner.duration)
             }
             SimulationResult::Draw(SimulationDrawType::SimultaneousDefeat, ..) => {
-                format!("[{:?}] Draw by simultaneous defeat", inner.duration,)
+                format!("[{:?}] Draw by simultaneous defeat\n", inner.duration,)
             }
         };
-        write!(f, "{header}")
+        let events = match self {
+            SimulationResult::Victory(i) => &i.events,
+            SimulationResult::Defeat(i) => &i.events,
+            SimulationResult::Draw(.., i) => &i.events,
+        };
+        let mut last_line_was_tick = false;
+        for event in events {
+            match &event.1 {
+                CombatEvent::Tick(n) => {
+                    if !last_line_was_tick {
+                        res.push_str(&format!("[{n}] Tick\n"));
+                        last_line_was_tick = true;
+                    }
+                }
+                ref e => {
+                    last_line_was_tick = false;
+                    res.push_str(&format!("  {e:?} -> {:?}\n", event.0))
+                }
+            }
+        }
+        write!(f, "{res}")
     }
 }

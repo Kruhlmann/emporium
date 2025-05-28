@@ -83,6 +83,7 @@ impl CardTemplate {
             cooldown_counter: 0,
             freeze_ticks: GameTicks::default(),
             slow_ticks: GameTicks::default(),
+            haste_ticks: GameTicks::default(),
         })
     }
 }

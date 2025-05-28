@@ -645,12 +645,14 @@ impl App {
 
                     if let Some(event_rx) = &self.sim_event_rx {
                         for event in event_rx.try_iter() {
+                            // TODO fix this
                             match event {
                                 DispatchableEvent::Error(msg) => self.sim_errors.push(msg),
                                 DispatchableEvent::Warning(msg) => self.sim_warnings.push(msg),
                                 DispatchableEvent::Log(msg) => self.sim_logs.push(msg),
                                 DispatchableEvent::CardFrozen(id, duration) => self.sim_logs.push(format!("Froze item {id} for {duration}")),
                                 DispatchableEvent::Tick => {},
+                                _ => {},
                             }
                         }
 

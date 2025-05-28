@@ -46,4 +46,6 @@ pub enum DispatchableEvent {
     Warning(String),
     Tick,
     CardFrozen(CardSummary, GameTicks),
+    CardHasted(CardSummary, GameTicks),
+    CardSlowed(CardSummary, GameTicks),
 }

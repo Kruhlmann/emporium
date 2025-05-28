@@ -7,7 +7,7 @@ use models::v2_0_0::{
 use rand::{Rng, SeedableRng, rngs::StdRng, seq::SliceRandom};
 
 use crate::{
-    Card, CardModification, CardSummary, CombatEvent, DispatchableEvent, GlobalCardId,
+    Card, CardModification, CardSummary, CombatEvent, DispatchableEvent, GameTicks, GlobalCardId,
     NUMBER_OF_BOARD_SPACES, Player, SIMULATION_TICK_COUNT, SimulationDrawType, SimulationResult,
     SimulationResultInner, SimulationTemplate, TaggedCombatEvent,
 };
@@ -17,8 +17,8 @@ pub struct Simulation {
     pub player: Player,
     pub opponent: Player,
     pub event_sender: Option<std::sync::mpsc::Sender<DispatchableEvent>>,
-    pub stdout_enabled: bool,
     pub cards: IndexMap<GlobalCardId, Card>,
+    pub ticks: u128,
 }
 
 impl TryFrom<SimulationTemplate> for Simulation {
@@ -69,7 +69,7 @@ impl TryFrom<SimulationTemplate> for Simulation {
             player: template.player.create_player(player_card_ids)?,
             opponent: template.opponent.create_player(opponent_card_ids)?,
             event_sender: None,
-            stdout_enabled: false,
+            ticks: 0,
         })
     }
 }
@@ -100,7 +100,6 @@ impl Simulation {
         source_id: &GlobalCardId,
         condition: &TargetCondition,
     ) -> Vec<GlobalCardId> {
-        self.dispatch_log(format!("{condition}"));
         let Some(source_card) = self.cards.get(source_id) else {
             self.dispatch_event(&DispatchableEvent::Warning(format!(
                 "failed to get card with id {source_id} from {:?}",
@@ -142,6 +141,22 @@ impl Simulation {
     }
 
     fn dispatch_event(&self, event: &DispatchableEvent) {
+        #[cfg(feature = "trace")]
+        match event {
+            DispatchableEvent::Log(e) => tracing::info!("{e:?}"),
+            DispatchableEvent::Error(e) => tracing::error!("{e:?}"),
+            DispatchableEvent::Warning(e) => tracing::warn!("{e:?}"),
+            DispatchableEvent::Tick => tracing::debug!("tick"),
+            DispatchableEvent::CardFrozen(card, duration) => {
+                tracing::debug!(?card, ?duration, "freeze")
+            }
+            DispatchableEvent::CardSlowed(card, duration) => {
+                tracing::debug!(?card, ?duration, "slow")
+            }
+            DispatchableEvent::CardHasted(card, duration) => {
+                tracing::debug!(?card, ?duration, "haste")
+            }
+        }
         if let Some(ref tx) = self.event_sender {
             let _ = tx.send(event.clone());
         }
@@ -156,17 +171,17 @@ impl Simulation {
                 events.push(TaggedCombatEvent(card.owner, e));
             }
         }
+        events.push(TaggedCombatEvent(
+            PlayerTarget::Player,
+            CombatEvent::Tick(self.ticks),
+        ));
+        self.ticks += 1;
         events
     }
 
     fn apply_event(&mut self, event: &TaggedCombatEvent, rng: &mut StdRng) -> anyhow::Result<()> {
-        self.dispatch_log(format!("{event:?}"));
         match event {
-            TaggedCombatEvent(.., CombatEvent::Skip(reason)) => {
-                self.dispatch_event(&DispatchableEvent::Warning(format!(
-                    "event skipped: {reason:?}"
-                )));
-            }
+            TaggedCombatEvent(.., CombatEvent::Skip(..)) => {}
             TaggedCombatEvent(.., CombatEvent::Raw(s)) => {
                 self.dispatch_event(&DispatchableEvent::Warning(format!(
                     "raw event skipped: {s}"
@@ -249,40 +264,146 @@ impl Simulation {
                     false => self.opponent.heal(heal_value),
                 }
             }
-            TaggedCombatEvent(.., CombatEvent::Freeze(target, duration, source_id)) => {
+            TaggedCombatEvent(.., CombatEvent::Haste(target, duration, source_id)) => {
                 let candidate_ids: Vec<GlobalCardId> = self
                     .get_cards_by_target(source_id, target.target_condition())
                     .into_iter()
                     .collect();
-                let to_freeze = target.number_of_targets();
-                self.dispatch_log(format!("Freeze {to_freeze:?}"));
-                let mut eligible_ids: Vec<GlobalCardId> = candidate_ids
-                    .iter()
-                    .filter_map(|&id| match self.cards.get(&id) {
-                        Some(card)
-                            if card.modifications.iter().any(|m| {
-                                matches!(m, CardModification::Enchanted(Enchantment::Radiant))
-                            }) =>
-                        {
-                            None
-                        }
-                        _ => Some(id),
-                    })
-                    .collect();
+                let to_haste = target.number_of_targets();
+                self.dispatch_log(format!("Haste request: {}", to_haste));
 
-                if eligible_ids.len() > to_freeze {
-                    eligible_ids.shuffle(rng);
+                let (mut no_haste, mut has_haste): (Vec<_>, Vec<_>) =
+                    candidate_ids.into_iter().partition(|&id| {
+                        self.cards
+                            .get(&id)
+                            .map_or(false, |card| card.haste_ticks == GameTicks(0))
+                    });
+
+                no_haste.shuffle(rng);
+                has_haste.shuffle(rng);
+
+                let mut chosen = Vec::new();
+                chosen.extend(no_haste.into_iter().take(to_haste));
+                if chosen.len() < to_haste {
+                    chosen.extend(has_haste.into_iter().take(to_haste - chosen.len()));
                 }
 
-                self.dispatch_log(format!("Freeze {eligible_ids:?} {candidate_ids:?}"));
-                for id in eligible_ids.into_iter().take(to_freeze) {
+                self.dispatch_log(format!("Selected to haste: {:?}", chosen));
+
+                for id in chosen {
+                    if let Some(card_ref) = self.cards.get(&id) {
+                        let summary = CardSummary::from(card_ref);
+                        self.dispatch_event(&DispatchableEvent::CardHasted(summary, *duration));
+                    } else {
+                        self.dispatch_event(&DispatchableEvent::Warning(format!(
+                            "attempted to haste card with id {id} which isn't on the board"
+                        )));
+                    }
+
+                    if let Some(card_mut) = self.cards.get_mut(&id) {
+                        card_mut.haste(*duration);
+                    }
+                }
+            }
+            TaggedCombatEvent(.., CombatEvent::Slow(target, duration, source_id)) => {
+                let mut candidate_ids: Vec<GlobalCardId> = self
+                    .get_cards_by_target(source_id, target.target_condition())
+                    .into_iter()
+                    .collect();
+                let to_slow = target.number_of_targets();
+                self.dispatch_log(format!("Slow request: {}", to_slow));
+
+                candidate_ids.retain(|&id| {
+                    !matches!(
+                        self.cards
+                            .get(&id)
+                            .and_then(|card| card.modifications.iter().find(|m| matches!(
+                                m,
+                                CardModification::Enchanted(Enchantment::Radiant)
+                            ))),
+                        Some(_)
+                    )
+                });
+
+                let (mut not_slowed, mut already_slowed): (Vec<_>, Vec<_>) =
+                    candidate_ids.into_iter().partition(|&id| {
+                        self.cards
+                            .get(&id)
+                            .map_or(false, |card| card.slow_ticks == GameTicks(0))
+                    });
+
+                not_slowed.shuffle(rng);
+                already_slowed.shuffle(rng);
+
+                let mut chosen = Vec::new();
+                chosen.extend(not_slowed.into_iter().take(to_slow));
+                if chosen.len() < to_slow {
+                    chosen.extend(already_slowed.into_iter().take(to_slow - chosen.len()));
+                }
+
+                self.dispatch_log(format!("Selected card to slow: {:?}", chosen));
+
+                for id in chosen {
+                    if let Some(card_ref) = self.cards.get(&id) {
+                        let summary = CardSummary::from(card_ref);
+                        self.dispatch_event(&DispatchableEvent::CardSlowed(summary, *duration));
+                    } else {
+                        self.dispatch_event(&DispatchableEvent::Warning(format!(
+                            "attempted to slow card with id {id} which isn't on the board"
+                        )));
+                    }
+
+                    if let Some(card_mut) = self.cards.get_mut(&id) {
+                        card_mut.slow(*duration);
+                    }
+                }
+            }
+            TaggedCombatEvent(.., CombatEvent::Freeze(target, duration, source_id)) => {
+                let mut candidate_ids: Vec<GlobalCardId> = self
+                    .get_cards_by_target(source_id, target.target_condition())
+                    .into_iter()
+                    .collect();
+                let to_freeze = target.number_of_targets();
+                self.dispatch_log(format!("Freeze request: {}", to_freeze));
+
+                candidate_ids.retain(|&id| {
+                    !matches!(
+                        self.cards
+                            .get(&id)
+                            .and_then(|card| card.modifications.iter().find(|m| matches!(
+                                m,
+                                CardModification::Enchanted(Enchantment::Radiant)
+                            ))),
+                        Some(_)
+                    )
+                });
+
+                let (mut not_frozen, mut already_frozen): (Vec<_>, Vec<_>) =
+                    candidate_ids.into_iter().partition(|&id| {
+                        self.cards
+                            .get(&id)
+                            .map_or(false, |card| card.freeze_ticks == GameTicks(0))
+                    });
+
+                not_frozen.shuffle(rng);
+                already_frozen.shuffle(rng);
+
+                let mut chosen = Vec::new();
+                chosen.extend(not_frozen.into_iter().take(to_freeze));
+                if chosen.len() < to_freeze {
+                    chosen.extend(already_frozen.into_iter().take(to_freeze - chosen.len()));
+                }
+
+                self.dispatch_log(format!("Selected card to freeze: {:?}", chosen));
+
+                for id in chosen {
                     if let Some(card_ref) = self.cards.get(&id) {
                         let summary = CardSummary::from(card_ref);
                         self.dispatch_event(&DispatchableEvent::CardFrozen(summary, *duration));
                     } else {
                         self.dispatch_event(&DispatchableEvent::Warning(format!(
                             "attempted to freeze card with id {id} which isn't on the board"
-                        )))
+                        )));
                     }
 
                     if let Some(card_mut) = self.cards.get_mut(&id) {
@@ -290,6 +411,7 @@ impl Simulation {
                     }
                 }
             }
+            TaggedCombatEvent(.., CombatEvent::Tick(..)) => {}
             // Keeping this is useful whenever new events are implemented
             #[allow(unreachable_patterns)]
             _ => self.dispatch_event(&DispatchableEvent::Warning(format!(

@@ -1,11 +1,20 @@
 use std::path::PathBuf;
 
+use ctor::ctor;
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 use rstest::rstest;
 use simulator::{Simulation, SimulationDrawType, SimulationResult, SimulationTemplate};
 
 static SEED: u64 = 0x3a3f7af8085da7a2;
+
+#[ctor]
+fn init_tracing() {
+    #[cfg(feature = "trace")]
+    tracing_subscriber::fmt()
+        .with_env_filter(std::env::var("RUST_LOG").unwrap_or("info".into()))
+        .init();
+}
 
 fn read_simulation(path: &PathBuf) -> Result<SimulationTemplate, Box<dyn std::error::Error>> {
     let simulation_str = std::fs::read_to_string(path)?;
@@ -92,6 +101,7 @@ fn test_victory(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let template = read_simulation(&path)?;
     let result = run_simulation(template)?;
+    eprintln!("{result}");
     assert!(
         matches!(result, SimulationResult::Victory(..)),
         "Simulation `{:?}` failed: Expected `Victory` got `{}`",

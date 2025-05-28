@@ -17,21 +17,36 @@ pub struct Card {
     pub cooldown_counter: u128,
     pub freeze_ticks: GameTicks,
     pub slow_ticks: GameTicks,
+    pub haste_ticks: GameTicks,
     pub position: u8,
     pub owner: PlayerTarget,
     pub crit_chance: Percentage,
 }
 
 impl Card {
-    #[inline(always)]
     pub fn tick(&mut self) -> Vec<CombatEvent> {
+        let cooldown_increment = match (self.slow_ticks.0 > 0, self.haste_ticks.0 > 0) {
+            (true, false) => 1, // 0.5 * 2
+            (false, true) => 4, // 2.0 * 2
+            _ => 2,             // 1.0 * 2 (covers both haste/slow or neither)
+        };
+
         if self.freeze_ticks.0 > 0 {
             self.freeze_ticks.0 -= 1;
             return vec![CombatEvent::Skip(SkipReason::IsFrozen)];
         }
+        if self.haste_ticks.0 > 0 {
+            self.haste_ticks.0 -= 1;
+        }
+        if self.slow_ticks.0 > 0 {
+            self.slow_ticks.0 -= 1;
+        }
+
         let mut events: Vec<CombatEvent> = Vec::new();
         if self.cooldown.0 > 0 {
-            if self.cooldown_counter % self.cooldown.0 == 0 {
+            let threshold = self.cooldown.0 * 2;
+            if self.cooldown_counter > threshold {
+                self.cooldown_counter -= threshold;
                 for effect in &self.cooldown_effects {
                     let mut combat_events: Vec<CombatEvent> =
                         self.effect_to_combat_events(effect.clone());
@@ -39,12 +54,20 @@ impl Card {
                 }
             }
         }
-        self.cooldown_counter += 1;
+        self.cooldown_counter += cooldown_increment;
         events
     }
 
     pub fn freeze(&mut self, duration: GameTicks) {
-        self.freeze_ticks = duration
+        self.freeze_ticks += duration
+    }
+
+    pub fn slow(&mut self, duration: GameTicks) {
+        self.slow_ticks += duration
+    }
+
+    pub fn haste(&mut self, duration: GameTicks) {
+        self.haste_ticks += duration
     }
 
     pub fn matches(&self, condition: &TargetCondition, target_candidate: Option<&Card>) -> bool {
@@ -132,6 +155,14 @@ impl Card {
                     duration,
                     self.id_for_simulation,
                 )]
+            }
+            Effect::Slow(target, duration_seconds) => {
+                let duration: GameTicks = Duration::from_secs_f64(duration_seconds).into();
+                vec![CombatEvent::Slow(target, duration, self.id_for_simulation)]
+            }
+            Effect::Haste(target, duration_seconds) => {
+                let duration: GameTicks = Duration::from_secs_f64(duration_seconds).into();
+                vec![CombatEvent::Haste(target, duration, self.id_for_simulation)]
             }
             ref _effect => {
                 #[cfg(feature = "trace")]

@@ -17,6 +17,9 @@ pub enum CombatEvent {
     ApplyShield(PlayerTarget, DerivedValue<u32>, GlobalCardId),
     Heal(PlayerTarget, DerivedValue<u32>, GlobalCardId),
     Freeze(CardTarget, GameTicks, GlobalCardId),
+    Slow(CardTarget, GameTicks, GlobalCardId),
+    Haste(CardTarget, GameTicks, GlobalCardId),
+    Tick(u128),
 }
 
 #[derive(Clone, Debug)]
