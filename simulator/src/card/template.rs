@@ -67,10 +67,8 @@ impl CardTemplate {
             })
             .unwrap_or_default();
 
-        eprintln!(
-            "Register card {}<@{position}> with id {id} :: {tooltips:?}",
-            inner.name
-        );
+        #[cfg(feature = "trace")]
+        tracing::info!(?id, ?position, ?tooltips, name = ?inner.name, "Register card");
 
         Ok(Card {
             inner,

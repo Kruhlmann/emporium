@@ -117,7 +117,8 @@ impl Simulation {
                 .map(|(id, _)| id)
                 .cloned()
                 .collect();
-            eprintln!("condition {condition:?} found the following: {cards:?}");
+            #[cfg(feature = "trace")]
+            tracing::debug!(?cards, ?condition, "found cards from condition");
             cards
         } else {
             self.cards
@@ -135,11 +136,6 @@ impl Simulation {
         self
     }
 
-    pub fn with_stdout(mut self) -> Self {
-        self.stdout_enabled = true;
-        self
-    }
-
     fn dispatch_log(&self, s: String) {
         let event = &DispatchableEvent::Log(s);
         self.dispatch_event(event)
@@ -148,9 +144,6 @@ impl Simulation {
     fn dispatch_event(&self, event: &DispatchableEvent) {
         if let Some(ref tx) = self.event_sender {
             let _ = tx.send(event.clone());
-        }
-        if self.stdout_enabled {
-            eprintln!("EVENT: {:?}", event);
         }
     }
 
@@ -184,8 +177,7 @@ impl Simulation {
                 CombatEvent::DealDamage(player_target, damage_derivable, source_id),
             ) => {
                 if let Some(card) = self.cards.get(source_id) {
-                    let r = rng.random::<f64>();
-                    let did_crit = card.crit_chance.as_fraction() < r;
+                    let did_crit = card.crit_chance.as_fraction() < rng.random::<f64>();
                     let damage = match damage_derivable {
                         DerivedValue::Constant(p) => *p,
                         _ => self.derive_value(damage_derivable.clone(), source_id)? as u32,
@@ -222,7 +214,6 @@ impl Simulation {
                 owner,
                 CombatEvent::ApplyPoison(player_target, poison_derivable, source_id),
             ) => {
-                eprintln!("TAGGED POISON FROM {owner}");
                 // TODO poison crit
                 let poison = match poison_derivable {
                     DerivedValue::Constant(p) => *p,

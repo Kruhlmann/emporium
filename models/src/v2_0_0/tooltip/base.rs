@@ -50,7 +50,6 @@ impl std::fmt::Display for Tooltip {
                 write!(f, "Tooltip::ConditionalModifier({i}, {j})")
             }
             Tooltip::Raw(i) => {
-                eprintln!("cargo:warning=created raw variant tooltip {i:?}");
                 write!(f, "Tooltip::Raw({i:?}.to_string())")
             }
         }

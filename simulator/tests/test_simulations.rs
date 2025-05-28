@@ -17,8 +17,7 @@ fn run_simulation(
     template: SimulationTemplate,
 ) -> Result<SimulationResult, Box<dyn std::error::Error>> {
     let rng = StdRng::seed_from_u64(template.seed.unwrap_or(SEED));
-    let simulation: Simulation = template.try_into()?;
-    let mut simulation = simulation.with_stdout();
+    let mut simulation: Simulation = template.try_into()?;
     let result = simulation.run_once_with_rng(rng);
     Ok(result)
 }

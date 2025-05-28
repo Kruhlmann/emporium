@@ -75,10 +75,13 @@ impl Card {
                 self.matches(a, target_candidate) || self.matches(b, target_candidate)
             }
             TargetCondition::Not(a) => !self.matches(a, target_candidate),
-            TargetCondition::Raw(s) => {
-                eprintln!("skipping raw target condition: '{s}'");
+            #[cfg(feature = "trace")]
+            TargetCondition::Raw(condition) => {
+                tracing::warn!(?condition, "skipping raw target condition");
                 false
             }
+            #[cfg(not(feature = "trace"))]
+            TargetCondition::Raw(..) => false,
             TargetCondition::NameIncludes(s) => target_candidate
                 .map(|t| t.inner.name.to_lowercase().contains(&s.to_lowercase()))
                 .unwrap_or(false),
@@ -130,8 +133,9 @@ impl Card {
                     self.id_for_simulation,
                 )]
             }
-            ref effect => {
-                eprintln!("Refused to parse effect as combatevent {effect:?}");
+            ref _effect => {
+                #[cfg(feature = "trace")]
+                tracing::error!(?_effect, "effect could not become combatevent");
                 vec![CombatEvent::Raw(format!("{value}"))]
             }
         }

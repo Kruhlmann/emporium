@@ -266,7 +266,7 @@ impl CardSourceBuilder {
             }
         }
 
-        let _permit = HTTP_REQUEST_THROTTLE.acquire().await;
+        let _permit = crate::HTTP_REQUEST_THROTTLE.acquire().await;
 
         let mut file = std::fs::File::create(&image_path)?;
         let url = format!(

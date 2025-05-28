@@ -4009,6 +4009,7 @@ dependencies = [
  "rstest",
  "serde",
  "toml",
+ "tracing",
 ]
 
 [[package]]
