@@ -44,17 +44,18 @@ impl EffectEvent {
         let tooltip = tooltip.trim();
         if let Some(captures) = EFFECT_BURN.captures(tooltip) {
             if let Some(burn_str) = captures.get(1) {
-                if let Ok(burn) = burn_str.as_str().parse::<u32>() {
-                    return EffectEvent::OnCooldown(Effect::Burn(
-                        PlayerTarget::Opponent,
-                        DerivedValue::Constant(burn),
-                    ));
+                if let Ok(burn) = burn_str.as_str().parse::<u32>().map(DerivedValue::Constant) {
+                    return EffectEvent::OnCooldown(Effect::Burn(PlayerTarget::Opponent, burn));
                 }
             }
         }
         if let Some(captures) = EFFECT_POISON.captures(tooltip) {
             if let Some(poison_str) = captures.get(1) {
-                if let Ok(poison) = poison_str.as_str().parse::<u32>() {
+                if let Ok(poison) = poison_str
+                    .as_str()
+                    .parse::<u32>()
+                    .map(DerivedValue::Constant)
+                {
                     return EffectEvent::OnCooldown(Effect::Poison(PlayerTarget::Opponent, poison));
                 }
             }
@@ -71,14 +72,19 @@ impl EffectEvent {
         }
         if let Some(captures) = EFFECT_HEAL.captures(tooltip) {
             if let Some(heal_str) = captures.get(1) {
-                if let Ok(heal) = heal_str.as_str().parse::<u32>() {
+                if let Ok(heal) = heal_str.as_str().parse::<u32>().map(DerivedValue::Constant) {
                     return EffectEvent::OnCooldown(Effect::Heal(PlayerTarget::Player, heal));
                 }
             }
         }
+
         if let Some(captures) = EFFECT_DEAL_DAMAGE.captures(tooltip) {
             if let Some(damage_str) = captures.get(1) {
-                if let Ok(damage) = damage_str.as_str().parse::<u32>() {
+                if let Ok(damage) = damage_str
+                    .as_str()
+                    .parse::<u32>()
+                    .map(DerivedValue::Constant)
+                {
                     return EffectEvent::OnCooldown(Effect::DealDamage(
                         PlayerTarget::Opponent,
                         damage,

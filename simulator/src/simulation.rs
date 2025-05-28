@@ -181,19 +181,26 @@ impl Simulation {
                     "raw event skipped: {s}"
                 )));
             }
-            TaggedCombatEvent(owner, CombatEvent::DealDamage(player_target, dmg, source_id)) => {
+            TaggedCombatEvent(
+                owner,
+                CombatEvent::DealDamage(player_target, damage_derivable, source_id),
+            ) => {
                 if let Some(card) = self.cards.get(source_id) {
                     let r = rng.random::<f64>();
                     let did_crit = card.crit_chance.as_fraction() < r;
-                    let dmg = if did_crit {
+                    let damage = match damage_derivable {
+                        DerivedValue::Constant(p) => *p,
+                        _ => self.derive_value(damage_derivable.clone(), source_id)? as u32,
+                    };
+                    let damage = if did_crit {
                         // TODO what about increased crit dmg
-                        *dmg + *dmg
+                        damage + damage
                     } else {
-                        *dmg
+                        damage
                     };
                     match owner == player_target {
-                        true => self.player.take_damage(dmg),
-                        false => self.opponent.take_damage(dmg),
+                        true => self.player.take_damage(damage),
+                        false => self.opponent.take_damage(damage),
                     }
                 } else {
                     // TODO else what?
@@ -208,17 +215,23 @@ impl Simulation {
                     DerivedValue::Constant(b) => *b,
                     _ => self.derive_value(burn_derivable.clone(), source_id)? as u32,
                 };
-                self.dispatch_log(format!("Burning for {burn_derivable:?} -> {burn}"));
                 match owner == player_target {
                     true => self.player.burn(burn),
                     false => self.opponent.burn(burn),
                 }
             }
-            TaggedCombatEvent(owner, CombatEvent::ApplyPoison(player_target, poison, ..)) => {
+            TaggedCombatEvent(
+                owner,
+                CombatEvent::ApplyPoison(player_target, poison_derivable, source_id),
+            ) => {
                 // TODO poison crit
+                let poison = match poison_derivable {
+                    DerivedValue::Constant(p) => *p,
+                    _ => self.derive_value(poison_derivable.clone(), source_id)? as u32,
+                };
                 match owner == player_target {
-                    true => self.player.poison(*poison),
-                    false => self.opponent.poison(*poison),
+                    true => self.player.poison(poison),
+                    false => self.opponent.poison(poison),
                 }
             }
             TaggedCombatEvent(
@@ -311,7 +324,13 @@ impl Simulation {
                             .iter()
                             .flat_map(|t| {
                                 t.cooldown_effects.iter().map(|e| match e {
-                                    Effect::DealDamage(.., d) => Some(*d as f32),
+                                    Effect::DealDamage(.., d) => match d {
+                                        DerivedValue::Constant(v) => Some(*v as f32),
+                                        v => {
+                                            // SAFETY Careful with recursion
+                                            self.derive_value(v.clone(), source_id).ok()
+                                        }
+                                    },
                                     _ => None,
                                 })
                             })

@@ -11,9 +11,9 @@ pub enum SkipReason {
 pub enum CombatEvent {
     Raw(String),
     Skip(SkipReason),
-    DealDamage(PlayerTarget, u32, GlobalCardId),
+    DealDamage(PlayerTarget, DerivedValue<u32>, GlobalCardId),
     ApplyBurn(PlayerTarget, DerivedValue<u32>, GlobalCardId),
-    ApplyPoison(PlayerTarget, u32, GlobalCardId),
+    ApplyPoison(PlayerTarget, DerivedValue<u32>, GlobalCardId),
     ApplyShield(PlayerTarget, DerivedValue<u32>, GlobalCardId),
     Freeze(CardTarget, GameTicks, GlobalCardId),
 }

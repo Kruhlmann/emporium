@@ -20,7 +20,10 @@ lazy_static::lazy_static! {
     pub static ref EFFECT_UPGRADE_RANDOM_PIGGLE: Regex = Regex::new(r"^upgrade a random piggle\.?$").unwrap();
     pub static ref EFFECT_GAIN_GOLD: Regex = Regex::new(r"^gain (\d+) gold\.?$").unwrap();
     pub static ref EFFECT_UPGRADE_LOWER_TIER_TAGGED: Regex = Regex::new(r"^upgrade a ([\p{L} ]+) of a lower tier\.?$").unwrap();
-    pub static ref EFFECT_BURN_FROM_DAMAGE: Regex = Regex::new(r"burn equal to \(\d+\)% of this item's damage.").unwrap();
+    pub static ref EFFECT_BURN_FROM_DAMAGE: Regex = Regex::new(r"burn equal to (\d+)% of this item's damage.").unwrap();
+    pub static ref EFFECT_HEAL_FROM_DAMAGE: Regex = Regex::new(r"heal equal to (\d+)% of this item's damage.").unwrap();
+    pub static ref EFFECT_SHIELD_FROM_DAMAGE: Regex = Regex::new(r"shield equal to (\d+)% of this item's damage.").unwrap();
+    pub static ref EFFECT_POISON_FROM_DAMAGE: Regex = Regex::new(r"poison equal to (\d+)% of this item's damage.").unwrap();
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -73,14 +76,14 @@ pub enum Effect {
     Charge(CardTarget, f64),
     Destroy(CardTarget),
     Burn(PlayerTarget, DerivedValue<u32>),
-    Heal(PlayerTarget, u32),
+    Heal(PlayerTarget, DerivedValue<u32>),
     Shield(PlayerTarget, DerivedValue<u32>),
-    Poison(PlayerTarget, u32),
-    GainGold(PlayerTarget, u32),
-    DealDamage(PlayerTarget, u32),
+    Poison(PlayerTarget, DerivedValue<u32>),
+    GainGold(PlayerTarget, DerivedValue<u32>),
+    DealDamage(PlayerTarget, DerivedValue<u32>),
     UseCard(CardTarget),
     Upgrade(CardTarget, Tier),
-    PermanentMaxHealthIncrease(EffectValue<u32>),
+    PermanentMaxHealthIncrease(DerivedValue<u32>),
     IncreaseMaxAmmo(CardTarget, EffectValue<u32>),
     ObtainItem(Vec<ObtainedEffectItem>),
     SpendGoldForEffect(u32, Box<Effect>),
@@ -192,15 +195,19 @@ impl Effect {
         }
         if let Some(captures) = EFFECT_POISON_SELF.captures(tooltip) {
             if let Some(poison_str) = captures.get(1) {
-                if let Ok(poison) = poison_str.as_str().parse::<u32>() {
+                if let Ok(poison) = poison_str
+                    .as_str()
+                    .parse::<u32>()
+                    .map(DerivedValue::Constant)
+                {
                     return Effect::Poison(PlayerTarget::Player, poison);
                 }
             }
         }
         if let Some(captures) = EFFECT_GAIN_PERMANENT_MAX_HP.captures(tooltip) {
-            if let Some(amount_str) = captures.get(1) {
-                if let Ok(amount) = amount_str.as_str().parse::<u32>() {
-                    return Effect::PermanentMaxHealthIncrease(EffectValue::Flat(amount));
+            if let Some(hp_str) = captures.get(1) {
+                if let Ok(hp) = hp_str.as_str().parse::<u32>().map(DerivedValue::Constant) {
+                    return Effect::PermanentMaxHealthIncrease(hp);
                 }
             }
         }
@@ -210,6 +217,63 @@ impl Effect {
                     return Effect::SpendGoldForEffect(
                         gold,
                         Box::new(Effect::from_tooltip_str(effect_str.as_str())),
+                    );
+                }
+            }
+        }
+
+        if let Some(captures) = EFFECT_POISON_FROM_DAMAGE.captures(tooltip) {
+            if let Some(poison_str) = captures.get(1) {
+                if let Ok(poison_pct) = poison_str
+                    .as_str()
+                    .parse::<f64>()
+                    .map(Percentage::from_percentage_value)
+                {
+                    return Effect::Poison(
+                        PlayerTarget::Player,
+                        DerivedValue::FromCard(
+                            CardTarget(1, TargetCondition::IsSelf),
+                            CardDerivedProperty::Damage,
+                            poison_pct.as_fraction() as f32,
+                        ),
+                    );
+                }
+            }
+        }
+
+        if let Some(captures) = EFFECT_SHIELD_FROM_DAMAGE.captures(tooltip) {
+            if let Some(shield_str) = captures.get(1) {
+                if let Ok(shield_pct) = shield_str
+                    .as_str()
+                    .parse::<f64>()
+                    .map(Percentage::from_percentage_value)
+                {
+                    return Effect::Shield(
+                        PlayerTarget::Player,
+                        DerivedValue::FromCard(
+                            CardTarget(1, TargetCondition::IsSelf),
+                            CardDerivedProperty::Damage,
+                            shield_pct.as_fraction() as f32,
+                        ),
+                    );
+                }
+            }
+        }
+
+        if let Some(captures) = EFFECT_HEAL_FROM_DAMAGE.captures(tooltip) {
+            if let Some(heal_str) = captures.get(1) {
+                if let Ok(heal_pct) = heal_str
+                    .as_str()
+                    .parse::<f64>()
+                    .map(Percentage::from_percentage_value)
+                {
+                    return Effect::Heal(
+                        PlayerTarget::Player,
+                        DerivedValue::FromCard(
+                            CardTarget(1, TargetCondition::IsSelf),
+                            CardDerivedProperty::Damage,
+                            heal_pct.as_fraction() as f32,
+                        ),
                     );
                 }
             }
@@ -233,9 +297,10 @@ impl Effect {
                 }
             }
         }
+
         if let Some(captures) = EFFECT_GAIN_GOLD.captures(tooltip) {
             if let Some(gold_str) = captures.get(1) {
-                if let Ok(gold) = gold_str.as_str().parse::<u32>() {
+                if let Ok(gold) = gold_str.as_str().parse::<u32>().map(DerivedValue::Constant) {
                     return Effect::GainGold(PlayerTarget::Player, gold);
                 }
             }
