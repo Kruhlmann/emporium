@@ -5,4 +5,3 @@ members = ["gamedata", "gui", "models", "parser", "simulator"]
 [profile.release]
 lto = true
 codegen-units = 1
-debug = 1

@@ -48,20 +48,6 @@ impl Card {
     }
 
     pub fn matches(&self, condition: &TargetCondition, target_candidate: Option<&Card>) -> bool {
-        if let TargetCondition::HasOwner(condition_owner) = condition {
-            eprintln!(
-                "({}) The condition needs cards beloning to {condition_owner} i ({}) am owned by {} and my target candidate ({}) is owned by {}",
-                self.owner == *condition_owner,
-                self.inner.name,
-                self.owner,
-                target_candidate
-                    .map(|t| t.inner.name.to_string())
-                    .unwrap_or("<none>".to_string()),
-                target_candidate
-                    .map(|t| t.owner.to_string())
-                    .unwrap_or("<none>".to_string())
-            );
-        }
         match condition {
             TargetCondition::Always => true,
             TargetCondition::Never => false,

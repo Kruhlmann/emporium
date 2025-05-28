@@ -92,6 +92,15 @@ impl Tooltip {
             s if let Some(rest) = s.strip_prefix("when you use an adjacent item,") => {
                 EffectEvent::OnCardUsed(TargetCondition::Adjacent, Effect::from_tooltip_str(rest))
             }
+            s if let Some(rest) = s.strip_prefix("when you use an item,") => {
+                EffectEvent::OnCardUsed(
+                    TargetCondition::HasOwner(PlayerTarget::Player),
+                    Effect::from_tooltip_str(rest),
+                )
+            }
+            s if let Some(rest) = s.strip_prefix("when you sell this") => {
+                EffectEvent::OnCardSold(Effect::from_tooltip_str(rest))
+            }
             s if let Some(rest) = s.strip_prefix("when you use shield or heal,") => {
                 EffectEvent::OnCardUsed(
                     TargetCondition::HasOwner(PlayerTarget::Player)
@@ -264,34 +273,6 @@ impl Tooltip {
         }
         if value == "this has +1 multicast." {
             return Tooltip::StaticModifier(Modifier::Multicast(1));
-        }
-        if value == "burn equal to 10% of this item's damage." {
-            // TODO: change to percentage
-            return Tooltip::When(EffectEvent::OnCooldown(Effect::Burn(
-                PlayerTarget::Opponent,
-                10,
-            )));
-        }
-        if value == "poison equal to 10% of this item's damage." {
-            // TODO: change to percentage
-            return Tooltip::When(EffectEvent::OnCooldown(Effect::Poison(
-                PlayerTarget::Opponent,
-                10,
-            )));
-        }
-        if value == "heal equal to this item's damage." {
-            // TODO: change to percentage
-            return Tooltip::When(EffectEvent::OnCooldown(Effect::Heal(
-                PlayerTarget::Opponent,
-                100,
-            )));
-        }
-        if value == "shield equal to this item's damage." {
-            // TODO: change to percentage
-            return Tooltip::When(EffectEvent::OnCooldown(Effect::Shield(
-                PlayerTarget::Opponent,
-                DerivedValue::Constant(100),
-            )));
         }
         if value == "shield equal to the value of the adjacent items." {
             // TODO: change to percentage

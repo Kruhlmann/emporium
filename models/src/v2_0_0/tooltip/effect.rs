@@ -3,7 +3,7 @@ use std::str::FromStr;
 use heck::ToTitleCase;
 use regex::Regex;
 
-use crate::v2_0_0::{Tag, Tier};
+use crate::v2_0_0::{Percentage, Tag, Tier};
 
 use super::{
     CardTarget, Condition, EffectValue, ObtainedEffectItem, PlayerTarget, TargetCondition,
@@ -20,11 +20,13 @@ lazy_static::lazy_static! {
     pub static ref EFFECT_UPGRADE_RANDOM_PIGGLE: Regex = Regex::new(r"^upgrade a random piggle\.?$").unwrap();
     pub static ref EFFECT_GAIN_GOLD: Regex = Regex::new(r"^gain (\d+) gold\.?$").unwrap();
     pub static ref EFFECT_UPGRADE_LOWER_TIER_TAGGED: Regex = Regex::new(r"^upgrade a ([\p{L} ]+) of a lower tier\.?$").unwrap();
+    pub static ref EFFECT_BURN_FROM_DAMAGE: Regex = Regex::new(r"burn equal to \(\d+\)% of this item's damage.").unwrap();
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum CardDerivedProperty {
     Value,
+    Damage,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -59,6 +61,7 @@ impl<T: std::fmt::Display> std::fmt::Display for DerivedValue<T> {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Effect {
     Raw(String),
+    Use(CardTarget),
     GainShield(CardTarget, EffectValue<f64>),
     CooldownReduction(CardTarget, EffectValue<f64>),
     IncreaseDamage(CardTarget, EffectValue<u32>),
@@ -69,7 +72,7 @@ pub enum Effect {
     DamageImmunity(f64),
     Charge(CardTarget, f64),
     Destroy(CardTarget),
-    Burn(PlayerTarget, u32),
+    Burn(PlayerTarget, DerivedValue<u32>),
     Heal(PlayerTarget, u32),
     Shield(PlayerTarget, DerivedValue<u32>),
     Poison(PlayerTarget, u32),
@@ -89,6 +92,7 @@ pub enum Effect {
 impl std::fmt::Display for Effect {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Effect::Use(i) => write!(f, "Effect::Use({i})"),
             Effect::GainShield(i, j) => write!(f, "Effect::GainShield({i}, {j})"),
             Effect::CooldownReduction(i, j) => write!(f, "Effect::CooldownReduction({i}, {j})"),
             Effect::Freeze(i, j) => write!(f, "Effect::Freeze({i}, {j:.2})"),
@@ -142,6 +146,11 @@ impl std::fmt::Display for Effect {
 impl Effect {
     pub fn from_tooltip_str(tooltip: &str) -> Effect {
         let tooltip = tooltip.trim();
+
+        if tooltip == "use this." {
+            return Effect::Use(CardTarget(1, TargetCondition::IsSelf));
+        }
+
         if let Some(captures) = EFFECT_GET_ITEMS_REGEX.captures(tooltip) {
             if let (Some(count), Some(name)) = (captures.get(1), captures.get(2)) {
                 let count = match [count.as_str()] {
@@ -206,6 +215,24 @@ impl Effect {
             }
         }
 
+        if let Some(captures) = EFFECT_BURN_FROM_DAMAGE.captures(tooltip) {
+            if let Some(burn_str) = captures.get(1) {
+                if let Ok(burn_pct) = burn_str
+                    .as_str()
+                    .parse::<f64>()
+                    .map(Percentage::from_percentage_value)
+                {
+                    return Effect::Burn(
+                        PlayerTarget::Player,
+                        DerivedValue::FromCard(
+                            CardTarget(1, TargetCondition::IsSelf),
+                            CardDerivedProperty::Damage,
+                            burn_pct.as_fraction() as f32,
+                        ),
+                    );
+                }
+            }
+        }
         if let Some(captures) = EFFECT_GAIN_GOLD.captures(tooltip) {
             if let Some(gold_str) = captures.get(1) {
                 if let Ok(gold) = gold_str.as_str().parse::<u32>() {

@@ -1,6 +1,6 @@
 use regex::Regex;
 
-use super::{DerivedValue, Effect, GlobalEvent, PlayerTarget, TargetCondition};
+use super::{CardTarget, DerivedValue, Effect, GlobalEvent, PlayerTarget, TargetCondition};
 
 lazy_static::lazy_static! {
     pub static ref EFFECT_DEAL_DAMAGE: Regex = Regex::new(r"^deal (\d+) damage\.?$").unwrap();
@@ -16,6 +16,7 @@ pub enum EffectEvent {
     OnDayStart(Effect),
     OnWinVersusHero(Effect),
     OnFightStart(Effect),
+    OnCardSold(Effect),
     OnCardUsed(TargetCondition, Effect),
     OnCrit(TargetCondition, Effect),
     OnFirstTime(GlobalEvent, Effect),
@@ -26,6 +27,7 @@ impl std::fmt::Display for EffectEvent {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             EffectEvent::OnCooldown(i) => write!(f, "EffectEvent::OnCooldown({i})"),
+            EffectEvent::OnCardSold(i) => write!(f, "EffectEvent::OnCardSold({i})"),
             EffectEvent::OnDayStart(i) => write!(f, "EffectEvent::OnDayStart({i})"),
             EffectEvent::OnWinVersusHero(i) => write!(f, "EffectEvent::OnWinVersusHero({i})"),
             EffectEvent::OnFightStart(i) => write!(f, "EffectEvent::OnFightStart({i})"),
@@ -43,7 +45,10 @@ impl EffectEvent {
         if let Some(captures) = EFFECT_BURN.captures(tooltip) {
             if let Some(burn_str) = captures.get(1) {
                 if let Ok(burn) = burn_str.as_str().parse::<u32>() {
-                    return EffectEvent::OnCooldown(Effect::Burn(PlayerTarget::Opponent, burn));
+                    return EffectEvent::OnCooldown(Effect::Burn(
+                        PlayerTarget::Opponent,
+                        DerivedValue::Constant(burn),
+                    ));
                 }
             }
         }
@@ -81,6 +86,14 @@ impl EffectEvent {
                 }
             }
         }
+
+        if tooltip == "use all your other items." {
+            return EffectEvent::OnCooldown(Effect::Use(CardTarget(
+                usize::MAX,
+                !TargetCondition::IsSelf & TargetCondition::HasOwner(PlayerTarget::Player),
+            )));
+        }
+
         EffectEvent::Raw(tooltip.to_string())
     }
 

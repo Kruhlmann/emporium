@@ -2,7 +2,7 @@ use std::time::Instant;
 
 use indexmap::IndexMap;
 use models::v2_0_0::{
-    CardDerivedProperty, DerivedValue, Enchantment, PlayerTarget, TargetCondition,
+    CardDerivedProperty, DerivedValue, Effect, Enchantment, PlayerTarget, TargetCondition,
 };
 use rand::{Rng, SeedableRng, rngs::StdRng, seq::SliceRandom};
 
@@ -199,11 +199,19 @@ impl Simulation {
                     // TODO else what?
                 }
             }
-            TaggedCombatEvent(owner, CombatEvent::ApplyBurn(player_target, burn, ..)) => {
+            TaggedCombatEvent(
+                owner,
+                CombatEvent::ApplyBurn(player_target, burn_derivable, source_id),
+            ) => {
                 // TODO burn crit
+                let burn = match burn_derivable {
+                    DerivedValue::Constant(b) => *b,
+                    _ => self.derive_value(burn_derivable.clone(), source_id)? as u32,
+                };
+                self.dispatch_log(format!("Burning for {burn_derivable:?} -> {burn}"));
                 match owner == player_target {
-                    true => self.player.burn(*burn),
-                    false => self.opponent.burn(*burn),
+                    true => self.player.burn(burn),
+                    false => self.opponent.burn(burn),
                 }
             }
             TaggedCombatEvent(owner, CombatEvent::ApplyPoison(player_target, poison, ..)) => {
@@ -291,11 +299,23 @@ impl Simulation {
                     .map(|id| self.cards.get(id))
                     .flatten()
                     .collect();
+                // TODO: Use the modifications as well
                 match card_derived_property {
                     CardDerivedProperty::Value => Ok(modifier
                         * targets
                             .iter()
                             .map(|t| t.tier.scale_cost(t.inner.size.base_cost()) as f32)
+                            .sum::<f32>()),
+                    CardDerivedProperty::Damage => Ok(modifier
+                        * targets
+                            .iter()
+                            .flat_map(|t| {
+                                t.cooldown_effects.iter().map(|e| match e {
+                                    Effect::DealDamage(.., d) => Some(*d as f32),
+                                    _ => None,
+                                })
+                            })
+                            .flatten()
                             .sum::<f32>()),
                 }
             }
