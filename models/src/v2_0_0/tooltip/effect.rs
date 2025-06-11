@@ -158,10 +158,14 @@ impl Effect {
 
         if let Some(captures) = EFFECT_GET_ITEMS_REGEX.captures(tooltip) {
             if let (Some(count), Some(name)) = (captures.get(1), captures.get(2)) {
-                let count = match [count.as_str()] {
-                    ["a"] => 1,
-                    [count_str] if let Ok(count) = count_str.parse::<u32>() => count,
-                    [..] => return Effect::Raw(tooltip.to_string()),
+                let count_str = count.as_str();
+                let count = if count_str == "a" {
+                    1
+                } else {
+                    match count_str.parse::<u32>() {
+                        Ok(c) => c,
+                        Err(_) => return Effect::Raw(tooltip.to_string()),
+                    }
                 };
                 let name = name.as_str().to_title_case();
                 let obtained_item = ObtainedEffectItem::new(name, count);
