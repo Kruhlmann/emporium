@@ -60,7 +60,7 @@ impl TryFrom<SimulationTemplate> for Simulation {
         }
 
         let player_card_ids: Vec<GlobalCardId> = player_cards.keys().cloned().collect();
-        let opponent_card_ids: Vec<GlobalCardId> = player_cards.keys().cloned().collect();
+        let opponent_card_ids: Vec<GlobalCardId> = opponent_cards.keys().cloned().collect();
         let mut cards = player_cards;
         cards.extend(opponent_cards.into_iter());
 
