@@ -59,85 +59,69 @@ impl std::fmt::Display for Tooltip {
 
 impl Tooltip {
     fn from_at_the_start(tooltip: &str) -> anyhow::Result<Tooltip> {
-        match tooltip {
-            s if let Some(rest) = s.strip_prefix("at the start of each day,") => Ok(Tooltip::When(
-                EffectEvent::OnDayStart(Effect::from_tooltip_str(rest.trim())),
-            )),
-            s if let Some(rest) = s.strip_prefix("at the start of each fight,") => {
-                Ok(Tooltip::When(EffectEvent::OnFightStart(
-                    Effect::from_tooltip_str(rest.trim()),
-                )))
-            }
-            s => anyhow::bail!("invalid 'at the start' variant: {s}"),
+        if let Some(rest) = tooltip.strip_prefix("at the start of each day,") {
+            Ok(Tooltip::When(EffectEvent::OnDayStart(
+                Effect::from_tooltip_str(rest.trim()),
+            )))
+        } else if let Some(rest) = tooltip.strip_prefix("at the start of each fight,") {
+            Ok(Tooltip::When(EffectEvent::OnFightStart(
+                Effect::from_tooltip_str(rest.trim()),
+            )))
+        } else {
+            anyhow::bail!("invalid 'at the start' variant: {tooltip}")
         }
     }
 
     fn from_first_time(tooltip: &str) -> anyhow::Result<Tooltip> {
-        let effect_event = match tooltip {
-            s if let Some(rest) =
-                s.strip_prefix("the first time you fall below half health each fight, ") =>
-            {
-                EffectEvent::OnFirstTime(
-                    GlobalEvent::PlayerFallsBelowHpPercentage(50.0),
-                    Effect::from_tooltip_str(rest),
-                )
-            }
-            s => anyhow::bail!("invalid first time event: '{s}'"),
+        let effect_event = if let Some(rest) = tooltip
+            .strip_prefix("the first time you fall below half health each fight, ")
+        {
+            EffectEvent::OnFirstTime(
+                GlobalEvent::PlayerFallsBelowHpPercentage(50.0),
+                Effect::from_tooltip_str(rest),
+            )
+        } else {
+            anyhow::bail!("invalid first time event: '{tooltip}'");
         };
         Ok(Tooltip::When(effect_event))
     }
 
     fn from_when(tooltip: &str) -> anyhow::Result<Tooltip> {
-        let effect_event = match tooltip {
-            s if let Some(rest) = s.strip_prefix("when you use an adjacent item,") => {
-                EffectEvent::OnCardUsed(TargetCondition::Adjacent, Effect::from_tooltip_str(rest))
-            }
-            s if let Some(rest) = s.strip_prefix("when you use an item,") => {
-                EffectEvent::OnCardUsed(
-                    TargetCondition::HasOwner(PlayerTarget::Player),
-                    Effect::from_tooltip_str(rest),
-                )
-            }
-            s if let Some(rest) = s.strip_prefix("when you sell this") => {
-                EffectEvent::OnCardSold(Effect::from_tooltip_str(rest))
-            }
-            s if let Some(rest) = s.strip_prefix("when you use shield or heal,") => {
-                EffectEvent::OnCardUsed(
-                    TargetCondition::HasOwner(PlayerTarget::Player)
-                        & (TargetCondition::HasTag(Tag::Heal)
-                            | TargetCondition::HasTag(Tag::Shield)),
-                    Effect::from_tooltip_str(rest),
-                )
-            }
-            s if let Some(rest) = s.strip_prefix("when you crit,") => EffectEvent::OnCrit(
+        let effect_event = if let Some(rest) = tooltip.strip_prefix("when you use an adjacent item,") {
+            EffectEvent::OnCardUsed(TargetCondition::Adjacent, Effect::from_tooltip_str(rest))
+        } else if let Some(rest) = tooltip.strip_prefix("when you use an item,") {
+            EffectEvent::OnCardUsed(
                 TargetCondition::HasOwner(PlayerTarget::Player),
                 Effect::from_tooltip_str(rest),
-            ),
-            s if let Some(rest) = s.strip_prefix("when your enemy uses an item,") => {
-                EffectEvent::OnCardUsed(
-                    TargetCondition::HasOwner(PlayerTarget::Opponent),
-                    Effect::from_tooltip_str(rest),
-                )
-            }
-            s if let Some(rest) = s.strip_prefix("when you win a fight against a hero,") => {
-                EffectEvent::OnWinVersusHero(Effect::from_tooltip_str(rest))
-            }
-            s if let Some(rest) = s.strip_prefix("when you use a weapon,") => {
-                EffectEvent::OnCardUsed(
-                    TargetCondition::HasOwner(PlayerTarget::Player),
-                    Effect::from_tooltip_str(rest),
-                )
-            }
-            // s if let Some(rest) = s.strip_prefix("when you use another weapon,") => {
-            //     let cond = TargetCondition::HasOwner(PlayerTarget::Player)
-            //         & TargetCondition::HasTag(Tag::Weapon);
-            //     // Note: replace "IsNotSelf" semantics with Not(OwnedBy(self)) if needed
-            //     EffectEvent::OnCardUsed(
-            //         CardTarget::Conditional(cond),
-            //         Effect::from_tooltip_str(rest),
-            //     )
-            // }
-            s => anyhow::bail!("invalid conditional effect: '{s}'"),
+            )
+        } else if let Some(rest) = tooltip.strip_prefix("when you sell this") {
+            EffectEvent::OnCardSold(Effect::from_tooltip_str(rest))
+        } else if let Some(rest) = tooltip.strip_prefix("when you use shield or heal,") {
+            EffectEvent::OnCardUsed(
+                TargetCondition::HasOwner(PlayerTarget::Player)
+                    & (TargetCondition::HasTag(Tag::Heal)
+                        | TargetCondition::HasTag(Tag::Shield)),
+                Effect::from_tooltip_str(rest),
+            )
+        } else if let Some(rest) = tooltip.strip_prefix("when you crit,") {
+            EffectEvent::OnCrit(
+                TargetCondition::HasOwner(PlayerTarget::Player),
+                Effect::from_tooltip_str(rest),
+            )
+        } else if let Some(rest) = tooltip.strip_prefix("when your enemy uses an item,") {
+            EffectEvent::OnCardUsed(
+                TargetCondition::HasOwner(PlayerTarget::Opponent),
+                Effect::from_tooltip_str(rest),
+            )
+        } else if let Some(rest) = tooltip.strip_prefix("when you win a fight against a hero,") {
+            EffectEvent::OnWinVersusHero(Effect::from_tooltip_str(rest))
+        } else if let Some(rest) = tooltip.strip_prefix("when you use a weapon,") {
+            EffectEvent::OnCardUsed(
+                TargetCondition::HasOwner(PlayerTarget::Player),
+                Effect::from_tooltip_str(rest),
+            )
+        } else {
+            anyhow::bail!("invalid conditional effect: '{tooltip}'")
         };
         Ok(Tooltip::When(effect_event))
     }

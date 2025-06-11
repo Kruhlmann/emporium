@@ -7,7 +7,7 @@ tier = "Bronze"
 modifications = [{ Enchanted = "Heavy" }]
 
 [opponent]
-health = 100
+health = 50
 
 [[opponent.cards]]
 name = "Fang"
