@@ -29,13 +29,14 @@ where
     Ok(cooldown)
 }
 
+static TODO: bool = true; //TODO SELLSFORGOLD Not used since theres no extra value data
 #[derive(Debug, Clone, PartialEq)]
 pub enum Tooltip {
     Conditional(Condition, Box<Tooltip>),
     When(EffectEvent),
     StaticModifier(Modifier),
     ConditionalModifier(Condition, Modifier),
-    SellsForGold, // TODO Not used since theres no extra value data
+    SellsForGold,
     Raw(String),
 }
 
@@ -274,7 +275,7 @@ impl Tooltip {
             return Tooltip::StaticModifier(Modifier::Multicast(1));
         }
         if value == "shield equal to the value of the adjacent items." {
-            // TODO: change to percentage
+            let todo = true; //TODO: change to percentage
             return Tooltip::When(EffectEvent::OnCooldown(Effect::Shield(
                 PlayerTarget::Player,
                 DerivedValue::FromCard(

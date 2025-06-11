@@ -12,19 +12,15 @@ toml = "0.8.22"
 anyhow = "1.0.98"
 rand = "0.9.1"
 indexmap = "2.9.0"
-tracing = { version = "0.1.41", optional = true }
-tracing-subscriber = { version = "0.3.19", features = [
-    "env-filter",
-], optional = true }
+tracing = { version = "0.1.41" }
 
 [dev-dependencies]
 rstest = "0.25.0"
 criterion = { version = "0.5", features = ["html_reports"] }
+tracing = { version = "0.1.41" }
+tracing-chrome = { version = "0.7.2" }
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
-ctor = "0.1"
-
-[features]
-trace = ["tracing", "tracing-subscriber"]
+ctor = "0.4.2"
 
 [[bench]]
 name = "benchmark_simulation"

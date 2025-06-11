@@ -19,23 +19,24 @@ pub enum Tier {
 }
 
 impl Tier {
-    pub fn select<T>(&self, t: TieredValue<T>) -> T {
+    pub fn select<'a, T>(&self, t: &'a TieredValue<T>) -> &'a T {
         match self {
-            Tier::Bronze => t.bronze,
-            Tier::Silver => t.silver,
-            Tier::Gold => t.gold,
-            Tier::Diamond => t.diamond,
-            Tier::Legendary => t.legendary,
+            Tier::Bronze => &t.bronze,
+            Tier::Silver => &t.silver,
+            Tier::Gold => &t.gold,
+            Tier::Diamond => &t.diamond,
+            Tier::Legendary => &t.legendary,
         }
     }
 
     pub fn scale_cost(self, cost: u32) -> u32 {
+        let todo = true; //TODO hard coded legendary
         match self {
             Tier::Bronze => cost,
             Tier::Silver => cost * 2,
             Tier::Gold => cost * 4,
             Tier::Diamond => cost * 8,
-            Tier::Legendary => 50, // TODO hard coded
+            Tier::Legendary => 50,
         }
     }
 }

@@ -11,6 +11,7 @@ pub enum Modifier {
     Cooldown(f64),
     Ammo(u32),
     Multicast(u32),
+    IncreasedValue(u32),
     Radiant,
 }
 
@@ -25,6 +26,7 @@ impl std::fmt::Display for Modifier {
             Modifier::CritChance(i) => write!(f, "Modifier::CritChance({i:.2})"),
             Modifier::LessDamageTaken(i) => write!(f, "Modifier::LessDamageTaken({i})"),
             Modifier::WeaponDamage(i) => write!(f, "Modifier::WeaponDamage({i})"),
+            Modifier::IncreasedValue(i) => write!(f, "Modifier::IncreasedValue({i})"),
         }
     }
 }

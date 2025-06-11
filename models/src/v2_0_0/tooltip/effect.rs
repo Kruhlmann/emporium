@@ -84,7 +84,7 @@ pub enum Effect {
     GainGold(PlayerTarget, DerivedValue<u32>),
     DealDamage(PlayerTarget, DerivedValue<u32>),
     UseCard(CardTarget),
-    Upgrade(CardTarget, Tier),
+    Upgrade(Tier, CardTarget),
     PermanentMaxHealthIncrease(DerivedValue<u32>),
     IncreaseMaxAmmo(CardTarget, EffectValue<u32>),
     ObtainItem(Vec<ObtainedEffectItem>),
@@ -131,7 +131,7 @@ impl std::fmt::Display for Effect {
                 write!(f, "Effect::PermanentMaxHealthIncrease({i})")
             }
             Effect::IncreaseMaxAmmo(i, j) => write!(f, "Effect::IncreaseMaxAmmo({i}, {j})"),
-            Effect::Upgrade(i, j) => write!(f, "Effect::Upgrade({i}, Tier::{j:?})"),
+            Effect::Upgrade(i, j) => write!(f, "Effect::Upgrade(Tier::{i:?}, {j})"),
             Effect::GainXp(i, j) => write!(f, "Effect::GainXp({i}, {j})"),
             Effect::MultiEffect(effects) => {
                 let effect_str = effects
@@ -341,27 +341,40 @@ impl Effect {
         }
         if EFFECT_UPGRADE_RANDOM_PIGGLE.is_match(tooltip) {
             return Effect::Upgrade(
-                CardTarget(1, TargetCondition::NameIncludes(" piggle".to_string())),
                 Tier::Bronze,
+                CardTarget(1, TargetCondition::NameIncludes("piggle".to_string())),
             );
         }
         // if let Some(captures) = EFFECT_UPGRADE_LOWER_TIER_TAGGED.captures(tooltip) {
         //     if let Some(tag_str) = captures.get(1) {
         //         if let Ok(tag) = Tag::from_str(tag_str.as_str()) {
-        //             let condition = TargetCondition::HasOwner(PlayerTarget::Player)
-        //                 & C
-        //             let condition = TargetConditionCondition::And(
-        //                 TargetConditionCondition::IsOwn.into(),
-        //                 TargetConditionCondition::And(
-        //                     TargetConditionCondition::HasTag(tag).into(),
-        //                     TargetConditionCondition::IsLowerTierThanSelf.into(),
-        //                 )
-        //                 .into(),
+        //             return Effect::Upgrade(
+        //                 Tier::Bronze,
+        //                 CardTarget(1, TargetCondition::NameIncludes(" piggle".to_string())),
         //             );
-        //             return Effect::Upgrade(Tier::Bronze, TargetCondition::Conditional(condition));
         //         }
         //     }
         // }
+        if tooltip == "deal damage equal to double this item's value." {
+            return Effect::DealDamage(
+                PlayerTarget::Opponent,
+                DerivedValue::FromCard(
+                    CardTarget(1, TargetCondition::IsSelf),
+                    CardDerivedProperty::Value,
+                    2.0,
+                ),
+            );
+        }
+        if tooltip == "deal damage equal to this item's value." {
+            return Effect::DealDamage(
+                PlayerTarget::Opponent,
+                DerivedValue::FromCard(
+                    CardTarget(1, TargetCondition::IsSelf),
+                    CardDerivedProperty::Value,
+                    1.0,
+                ),
+            );
+        }
         if tooltip == "destroy an item for the fight." {
             return Effect::Destroy(CardTarget(
                 1,

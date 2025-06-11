@@ -13,16 +13,17 @@ use std::{
 
 use eframe::egui;
 use egui::{
-    Align, Align2, CentralPanel, Color32, ColorImage, Context, CursorIcon, DragValue, FontId,
-    Frame, Layout, Pos2, Rect, ScrollArea, Sense, Shape, SidePanel, Stroke, StrokeKind,
-    TextureHandle, TextureOptions, Ui, UiBuilder, Vec2,
+    Align, Align2, Button, CentralPanel, Color32, ColorImage, Context, CursorIcon, DragValue,
+    FontId, Frame, Grid, Layout, Pos2, Rect, ScrollArea, Sense, Shape, SidePanel, Stroke,
+    StrokeKind, TextureHandle, TextureOptions, Ui, UiBuilder, Vec2,
 };
 use egui_file_dialog::FileDialog;
 use gamedata::v2_0_0::CONSTRUCT_CARD_BY_NAME;
-use image::{GenericImageView, ImageFormat};
+use gui::interop;
+use image::GenericImageView;
 use models::v2_0_0::{PlayerTarget, Tier};
 use simulator::{
-    CardModification, CardTemplate, DispatchableEvent, PlayerTemplate, Simulation,
+    CardTemplate, DispatchableEvent, GlobalCardId, PlayerHealth, PlayerTemplate, Simulation,
     SimulationResult, SimulationSummary, SimulationTemplate,
 };
 use tracing_subscriber::EnvFilter;
@@ -100,30 +101,10 @@ impl From<models::v2_0_0::Card> for TexturedCard {
     }
 }
 
-#[derive(Clone)]
-struct CardOnBoard {
-    template: TexturedCard,
-    tier: Tier,
-    position: u8,
-    modifications: Vec<CardModification>,
-}
-
-impl Into<CardTemplate> for CardOnBoard {
-    fn into(self) -> CardTemplate {
-        CardTemplate {
-            name: self.template.card.name.to_string(),
-            tier: self.tier,
-            modifications: self.modifications,
-        }
-    }
-}
-
 struct App {
     texture_rx: Receiver<(String, ColorImage, u8)>,
     texture_tx: Sender<(String, ColorImage, u8)>,
     cards_with_texture: Vec<TexturedCard>,
-    player_board: Vec<CardOnBoard>,
-    opponent_board: Vec<CardOnBoard>,
     sim_event_rx: Option<Receiver<DispatchableEvent>>,
     sim_result_rx: Option<Receiver<SimulationResult>>,
     sim_errors: Vec<String>,
@@ -136,10 +117,9 @@ struct App {
     sim_start: Option<Instant>,
     sim_elapsed: Duration,
     sim_load_error: Option<String>,
-    player_health: u64,
-    opponent_health: u64,
     toml_file_dialog: FileDialog,
     loading_ids: HashSet<String>,
+    simulation: Simulation,
 }
 
 impl App {
@@ -151,13 +131,28 @@ impl App {
             cards_with_texture.push(construct().into());
         }
 
+        let simulation: Simulation = SimulationTemplate {
+            player: PlayerTemplate {
+                health: 300,
+                card_templates: vec![],
+                skill_templates: vec![],
+            },
+            opponent: PlayerTemplate {
+                health: 300,
+                card_templates: vec![],
+                skill_templates: vec![],
+            },
+            seed: None,
+        }
+        .try_into()
+        .unwrap();
+
         cards_with_texture.sort_by_key(|c: &TexturedCard| c.card.name);
         Self {
+            simulation,
             texture_rx,
             texture_tx,
             cards_with_texture,
-            player_board: Vec::with_capacity(10),
-            opponent_board: Vec::with_capacity(10),
             sim_event_rx: None,
             sim_result_rx: None,
             sim_running: false,
@@ -170,8 +165,6 @@ impl App {
             sim_start: None,
             sim_elapsed: Duration::ZERO,
             sim_load_error: None,
-            player_health: 300,
-            opponent_health: 300,
             toml_file_dialog: FileDialog::new()
                 .add_file_filter(
                     "TOML files",
@@ -183,50 +176,69 @@ impl App {
     }
 
     fn show_board(&mut self, ui: &mut Ui, board_owner: PlayerTarget) {
-        let board = match board_owner {
-            PlayerTarget::Player => &mut self.player_board,
-            PlayerTarget::Opponent => &mut self.opponent_board,
-        };
+        struct BoardCardView {
+            id: GlobalCardId,
+            position: u8,
+            tier: Tier,
+            size: u8,
+            inner: models::v2_0_0::Card,
+            removed: bool,
+        }
+
+        let mut board_views: Vec<BoardCardView> = self
+            .simulation
+            .get_cards_by_owner(board_owner)
+            .iter()
+            .filter_map(|gid| {
+                self.simulation.cards.get(gid).map(|c| BoardCardView {
+                    id: *gid,
+                    position: c.position,
+                    tier: c.tier,
+                    size: c.inner.size.board_spaces() as u8,
+                    inner: c.inner.clone(),
+                    removed: false,
+                })
+            })
+            .collect();
+
+        let mut slot_to_idx: [Option<usize>; 10] = [None; 10];
+        for (i, view) in board_views.iter().enumerate() {
+            if (view.position as usize) < 10 {
+                slot_to_idx[view.position as usize] = Some(i);
+            }
+        }
 
         ui.horizontal_wrapped(|ui| {
             let slot_w = 64.0;
             let slot_h = 96.0;
             let gap = ui.spacing().item_spacing.x;
-            let mut pos = 0u8;
 
-            while pos < 10 {
-                if let Some(card_on_board) = board.iter_mut().find(|c| c.position == pos) {
-                    let spaces = card_on_board.template.card.size.board_spaces() as f32;
-                    let extra = (spaces - 1.0) * gap + (spaces - 1.0) * 2.0 + 2.0; //Border
-                    let width = slot_w * spaces + extra;
+            for position in 0u8..10 {
+                if let Some(i) = slot_to_idx[position as usize] {
+                    let view = &mut board_views[i];
+                    let extra = (view.size as f32 - 1.0) * (gap + 2.0) + 2.0;
+                    let width = slot_w * (view.size as f32) + extra;
                     let (rect, resp) =
                         ui.allocate_exact_size(Vec2::new(width, slot_h), Sense::click());
 
-                    let id = card_on_board.template.card.id;
-                    if let Some(shared) =
-                        self.cards_with_texture.iter_mut().find(|t| t.card.id == id)
+                    if let Some(shared) = self
+                        .cards_with_texture
+                        .iter_mut()
+                        .find(|t| t.card.id == view.inner.id)
                     {
                         if shared.texture.is_none()
-                            && !self.loading_ids.contains(id)
+                            && !self.loading_ids.contains(&view.id.to_string())
                             && ui.is_rect_visible(rect)
                         {
-                            self.loading_ids.insert(id.to_string());
-                            let tx = self.texture_tx.clone();
-                            let path = shared.texture_path.clone();
-                            let size = shared.card.size.board_spaces() as u8;
-                            thread::spawn(move || {
-                                let bytes = std::fs::read(&path).unwrap();
-                                let img =
-                                    image::load_from_memory_with_format(&bytes, ImageFormat::Avif)
-                                        .unwrap()
-                                        .to_rgba8();
-                                let (w, h) = img.dimensions();
-                                let ci = ColorImage::from_rgba_unmultiplied(
-                                    [w as usize, h as usize],
-                                    &img.into_raw(),
-                                );
-                                tx.send((id.to_string(), ci, size)).unwrap();
-                            });
+                            let id_str = view.id.to_string();
+                            self.loading_ids.insert(id_str.clone());
+                            tracing::debug!(id = ?id_str, path = ?shared.texture_path, "spawn load texture thread");
+                            interop::spawn_load_texture_thread(
+                                shared.texture_path.clone(),
+                                id_str,
+                                shared.card.size.board_spaces() as u8,
+                                self.texture_tx.clone(),
+                            );
                         }
 
                         if let Some(tex) = &shared.texture {
@@ -236,7 +248,7 @@ impl App {
                                 Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)),
                                 Color32::WHITE,
                             ));
-                            let border = match card_on_board.tier {
+                            let border = match view.tier {
                                 Tier::Bronze => Color32::from_rgb(205, 127, 50),
                                 Tier::Silver => Color32::from_rgb(192, 192, 192),
                                 Tier::Gold => Color32::from_rgb(255, 215, 0),
@@ -249,24 +261,37 @@ impl App {
                                 Stroke::new(2.0, border),
                                 StrokeKind::Middle,
                             );
+
+                            let badge_radius = 8.0;
+                            let badge_center =
+                                Pos2::new(rect.center().x, rect.top() - badge_radius);
+                            let badge_rect = Rect::from_center_size(
+                                badge_center,
+                                Vec2::splat(badge_radius * 2.0),
+                            );
+                            ui.painter()
+                                .rect_filled(badge_rect, badge_radius, Color32::RED);
+                            ui.painter().text(
+                                badge_center,
+                                Align2::CENTER_CENTER,
+                                "124",
+                                FontId::proportional(12.0),
+                                Color32::WHITE,
+                            );
+                        }
+
+                        if resp.clicked() {
+                            let tiers = view.inner.available_tiers();
+                            if let Some(idx) = tiers.iter().position(|t| *t == view.tier) {
+                                view.tier = tiers[(idx + 1) % tiers.len()];
+                            }
+                        }
+                        if resp.secondary_clicked() {
+                            view.removed = true;
                         }
                     }
-
-                    if resp.clicked() {
-                        let tiers = card_on_board.template.card.available_tiers();
-                        if let Some(i) = tiers.iter().position(|t| *t == card_on_board.tier) {
-                            card_on_board.tier = tiers[(i + 1) % tiers.len()];
-                        }
-                    }
-                    let position_inc = card_on_board.template.card.size.board_spaces() as u8;
-
-                    if resp.secondary_clicked() {
-                        board.retain(|c| c.position != pos);
-                    }
-
-                    pos += position_inc;
                 } else {
-                    ui.push_id(pos, |ui| {
+                    ui.push_id(position, |ui| {
                         let frame = Frame::new()
                             .stroke(Stroke::new(1.0, ui.style().visuals.selection.stroke.color));
                         if let (_, Some(idx)) = ui.dnd_drop_zone::<usize, _>(frame, |ui| {
@@ -284,25 +309,60 @@ impl App {
                         }) {
                             let template = self.cards_with_texture[*idx].clone();
                             let size = template.card.size.board_spaces() as u8;
-                            let overlap = board.iter().any(|c| {
+                            let overlap = board_views.iter().any(|c| {
                                 let start = c.position;
-                                let end = start + c.template.card.size.board_spaces() as u8;
-                                (pos < end) && (start < pos + size)
+                                let end = start + c.size;
+                                (position < end) && (start < position + size)
                             });
-                            if !overlap && pos + size <= 10 {
-                                board.push(CardOnBoard {
+                            if !overlap && position + size <= 10 {
+                                let global_id = GlobalCardId::default();
+                                let ct = CardTemplate {
+                                    name: template.card.name.to_string(),
                                     tier: template.card.min_tier(),
-                                    template,
-                                    position: pos,
                                     modifications: vec![],
-                                });
+                                };
+                                if let Ok(new_card) =
+                                    ct.create_card_on_board(position, board_owner, global_id)
+                                {
+                                    self.simulation.cards.insert(global_id, new_card);
+                                    match board_owner {
+                                        PlayerTarget::Player => {
+                                            self.simulation.player.card_ids.push(global_id)
+                                        }
+                                        PlayerTarget::Opponent => {
+                                            self.simulation.opponent.card_ids.push(global_id)
+                                        }
+                                    }
+                                } else {
+                                    let todo = true; //TODO: notify user of failure
+                                }
                             }
                         }
                     });
-                    pos += 1;
                 }
             }
         });
+
+        // 4) Synchronize back to the simulation (mutable borrow)
+        for view in board_views {
+            if view.removed {
+                // Remove from simulation
+                self.simulation.cards.remove(&view.id);
+                match board_owner {
+                    PlayerTarget::Player => {
+                        self.simulation.player.card_ids.retain(|&g| g != view.id)
+                    }
+                    PlayerTarget::Opponent => {
+                        self.simulation.opponent.card_ids.retain(|&g| g != view.id)
+                    }
+                }
+            } else {
+                // Update tier on the real card
+                if let Some(card) = self.simulation.cards.get_mut(&view.id) {
+                    card.tier = view.tier;
+                }
+            }
+        }
     }
 
     fn show_side_panel(&mut self, ui: &mut Ui) {
@@ -330,36 +390,13 @@ impl App {
                             && ui.is_rect_visible(row_rect)
                         {
                             self.loading_ids.insert(temp.card.id.to_string());
-                            let tx = self.texture_tx.clone();
-                            let path = temp.texture_path.clone();
-                            let id = temp.card.id;
-                            let size = temp.card.size.board_spaces() as u8;
-                            tracing::debug!(?path, "spawn load texture thread");
-                            thread::spawn(move || {
-                                match std::fs::read(&path) {
-                                    Ok(bytes) => match image::load_from_memory_with_format(
-                                        &bytes,
-                                        ImageFormat::Avif,
-                                    )
-                                    .map(|i| i.to_rgba8())
-                                    {
-                                        Ok(img) => {
-                                            let (w, h) = img.dimensions();
-                                            let ci = ColorImage::from_rgba_unmultiplied(
-                                                [w as usize, h as usize],
-                                                &img.into_raw(),
-                                            );
-                                            tx.send((id.to_string(), ci, size)).unwrap();
-                                        }
-                                        Err(error) => {
-                                            tracing::warn!(?error, ?path, "unable to load texture")
-                                        }
-                                    },
-                                    Err(error) => {
-                                        tracing::warn!(?error, ?path, "unable to read texture")
-                                    }
-                                };
-                            });
+                            tracing::debug!(id = ?temp.card.id, path = ?temp.texture_path, "spawn load texture thread");
+                            interop::spawn_load_texture_thread(
+                                temp.texture_path.clone(),
+                                temp.card.id.to_string(),
+                                temp.card.size.board_spaces() as u8,
+                                self.texture_tx.clone(),
+                            );
                         }
 
                         if row_resp.hovered() {
@@ -393,7 +430,7 @@ impl App {
                         let text_w = (row_rect.width() - img_w - spacing).max(0.0);
                         row_ui.allocate_ui_with_layout(
                             Vec2::new(text_w, entry_height),
-                            Layout::top_down(egui::Align::Min),
+                            Layout::top_down(Align::Min),
                             |ui| {
                                 ui.label(temp.card.name);
                                 ui.horizontal_wrapped(|ui| {
@@ -454,6 +491,8 @@ impl App {
             );
 
             ui.separator();
+            let mut player_health_val = self.simulation.player.health.max() as f64;
+            let mut opponent_health_val = self.simulation.opponent.health.max() as f64;
             ui.allocate_ui_with_layout(
                 Vec2::new(ui.available_width(), ui.available_height()),
                 Layout::top_down(Align::Min),
@@ -472,17 +511,17 @@ impl App {
                         ui.horizontal(|ui| {
                             ui.label("Player Health:");
                             ui.add(
-                                DragValue::new(&mut self.player_health)
-                                    .range(1..=9999)
-                                    .speed(1),
+                                DragValue::new(&mut player_health_val)
+                                .range(1..=50000)
+                                .speed(1),
                             );
                         });
                         ui.horizontal(|ui| {
                             ui.label("Opponent Health:");
                             ui.add(
-                                DragValue::new(&mut self.opponent_health)
-                                    .range(1..=9999)
-                                    .speed(1),
+                                DragValue::new(&mut opponent_health_val)
+                                .range(1..=50000)
+                                .speed(1),
                             );
                         });
                         ui.add_space(8.0);
@@ -494,61 +533,15 @@ impl App {
                             match std::fs::read_to_string(&template_path) {
                                 Ok(template_str) => {
                                     match toml::from_str::<SimulationTemplate>(&template_str) {
-                                        Ok(template) => {
-                                            self.player_health = template.player.health;
-                                            self.opponent_health = template.opponent.health;
-                                            self.sim_load_error = None;
-
-                                            self.player_board.clear();
-                                            self.opponent_board.clear();
-
-                                            let mut pos = 0;
-                                            for ct in &template.player.card_templates {
-                                                if let Some(tc) = self
-                                                    .cards_with_texture
-                                                    .iter()
-                                                    .find(|t| t.card.name == ct.name)
-                                                {
-                                                    self.player_board.push(CardOnBoard {
-                                                        tier: ct.tier.clone(),
-                                                        template: tc.clone(),
-                                                        position: pos,
-                                                        modifications: vec![],
-                                                    });
-                                                    pos += tc.card.size.board_spaces() as u8;
-                                                } else {
-                                                    tracing::error!(name = ?ct.name, "unknown card in template");
-                                                    self.sim_load_error = Some(format!(
-                                                        "Unknown card in template: “{}”",
-                                                        ct.name
-                                                    ));
-                                                    break;
-                                                }
+                                        Ok(template) => match template.try_into() {
+                                            Ok(sim) => self.simulation = sim,
+                                            Err(error) => {
+                                                self.sim_load_error = Some(format!(
+                                                    "Loading simulation from template failed:\n{}",
+                                                    error
+                                                ))
                                             }
-                                            let mut pos = 0;
-                                            for ct in &template.opponent.card_templates {
-                                                if let Some(tc) = self
-                                                    .cards_with_texture
-                                                    .iter()
-                                                    .find(|t| t.card.name == ct.name)
-                                                {
-                                                    self.opponent_board.push(CardOnBoard {
-                                                        tier: ct.tier.clone(),
-                                                        template: tc.clone(),
-                                                        position: pos,
-                                                        modifications: vec![],
-                                                    });
-                                                    pos += tc.card.size.board_spaces() as u8;
-                                                } else {
-                                                    tracing::error!(name = ?ct.name, "unknown card in template");
-                                                    self.sim_load_error = Some(format!(
-                                                        "Unknown card in template: “{}”",
-                                                        ct.name
-                                                    ));
-                                                    break;
-                                                }
-                                            }
-                                        }
+                                        },
                                         Err(error) => {
                                             tracing::error!(
                                                 ?error,
@@ -575,7 +568,7 @@ impl App {
                         ui.add_space(4.0);
                         ui.add_space(8.0);
                         if ui
-                            .add_sized([150.0, 30.0], egui::Button::new("Run Simulation"))
+                            .add_sized([150.0, 30.0], Button::new("Run Simulation"))
                             .clicked()
                         {
                             let (evt_tx, evt_rx) = std::sync::mpsc::channel();
@@ -585,51 +578,18 @@ impl App {
                             let base_chunk = iterations / *OPTIMAL_THREAD_COUNT;
                             let remainder = iterations % *OPTIMAL_THREAD_COUNT;
 
-                            let player_cards: Vec<CardTemplate> = self
-                                .player_board
-                                .clone()
-                                .into_iter()
-                                .map(Into::into)
-                                .collect();
-                            let opponent_cards: Vec<CardTemplate> = self
-                                .opponent_board
-                                .clone()
-                                .into_iter()
-                                .map(Into::into)
-                                .collect();
-                            let sim_template: SimulationTemplate = SimulationTemplate {
-                                player: PlayerTemplate {
-                                    health: self.player_health,
-                                    card_templates: player_cards,
-                                    skill_templates: vec![],
-                                }, // TODO: SKILLS!
-                                opponent: PlayerTemplate {
-                                    health: self.opponent_health,
-                                    card_templates: opponent_cards,
-                                    skill_templates: vec![],
-                                }, // TODO: SKILLS!
-                                seed: None,
-                            };
-                            let sim_template = Arc::new(sim_template);
-
+                            tracing::debug!(thread_count = ?(*OPTIMAL_THREAD_COUNT), "executing simulation");
                             for i in 0..*OPTIMAL_THREAD_COUNT {
                                 let chunk = base_chunk + if i < remainder { 1 } else { 0 };
-                                let worker_template = sim_template.clone();
                                 let thread_evt_tx = evt_tx.clone();
                                 let thread_res_tx = res_tx.clone();
-                                thread::spawn(move || {
-                                    let base_rng = Simulation::create_rng();
-                                    let rng_clone = base_rng.clone();
-                                    for _ in 0..chunk {
-                                        let mut sim: Simulation =
-                                            worker_template.as_ref().clone().try_into().unwrap();
-                                        sim = sim.with_channel(thread_evt_tx.clone());
-                                        let result = sim.run_once_with_rng(rng_clone.clone());
-                                        if let Err(_) = thread_res_tx.send(result) {
-                                            break;
-                                        }
-                                    }
-                                });
+                                let simulation = self.simulation.clone();
+                                interop::spawn_run_simulation_thread(
+                                    chunk,
+                                    simulation,
+                                    thread_res_tx,
+                                    thread_evt_tx,
+                                );
                             }
 
                             self.sim_event_rx = Some(evt_rx);
@@ -645,14 +605,16 @@ impl App {
 
                     if let Some(event_rx) = &self.sim_event_rx {
                         for event in event_rx.try_iter() {
-                            // TODO fix this
+                            let todo = true; //TODO fix this
                             match event {
                                 DispatchableEvent::Error(msg) => self.sim_errors.push(msg),
                                 DispatchableEvent::Warning(msg) => self.sim_warnings.push(msg),
                                 DispatchableEvent::Log(msg) => self.sim_logs.push(msg),
-                                DispatchableEvent::CardFrozen(id, duration) => self.sim_logs.push(format!("Froze item {id} for {duration}")),
-                                DispatchableEvent::Tick => {},
-                                _ => {},
+                                DispatchableEvent::CardFrozen(id, duration) => self
+                                    .sim_logs
+                                    .push(format!("Froze item {id} for {duration}")),
+                                DispatchableEvent::Tick => {}
+                                _ => {}
                             }
                         }
 
@@ -683,7 +645,7 @@ impl App {
 
                         ui.separator();
 
-                        egui::Grid::new("results_grid")
+                        Grid::new("results_grid")
                             .spacing([40.0, 4.0])
                             .striped(true)
                             .min_col_width(80.0)
@@ -761,7 +723,7 @@ impl App {
                         });
 
                         if ui
-                            .add_sized([120.0, 24.0], egui::Button::new("Clear Results"))
+                            .add_sized([120.0, 24.0], Button::new("Clear Results"))
                             .clicked()
                         {
                             self.sim_logs.clear();
@@ -772,6 +734,10 @@ impl App {
                     Ok::<(), ()>(())
                 },
             );
+            self.simulation.player.health =
+                PlayerHealth(player_health_val as i64, player_health_val as u64);
+            self.simulation.opponent.health =
+                PlayerHealth(opponent_health_val as i64, opponent_health_val as u64);
         });
     }
 }

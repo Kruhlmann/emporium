@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use models::v2_0_0::{Effect, EffectEvent, Modifier, Percentage, PlayerTarget, Tier, Tooltip};
+use models::v2_0_0::{Effect, EffectEvent, Modifier, PlayerTarget, Tier, Tooltip};
 use serde::Deserialize;
 
 use crate::GameTicks;
@@ -27,13 +27,8 @@ impl CardTemplate {
                 .get(self.name.as_str())
                 .ok_or(anyhow::anyhow!("unknown card {:?}", &self.name))?;
         let inner = create_item();
-        // TODO optimize
-        let mut tooltips: Vec<Tooltip> = self
-            .tier
-            .select(inner.tiers.clone())
-            .iter()
-            .cloned()
-            .collect();
+        let todo = true; //TODO optimize
+        let mut tooltips: Vec<Tooltip> = self.tier.select(&inner.tiers).iter().cloned().collect();
         for derived_tooltips in self.modifications.iter().map(|m| m.derive_tooltips(&inner)) {
             for tooltip in derived_tooltips.into_iter() {
                 tooltips.push(tooltip.clone())
@@ -59,31 +54,29 @@ impl CardTemplate {
             })
             .unwrap_or(Duration::from_secs(0));
 
-        let crit_chance: Percentage = tooltips
-            .iter()
-            .find_map(|t| match t {
-                Tooltip::StaticModifier(Modifier::CritChance(c)) => Some(*c),
-                _ => None,
-            })
-            .unwrap_or_default();
-
-        #[cfg(feature = "trace")]
-        tracing::info!(?id, ?position, ?tooltips, name = ?inner.name, "Register card");
+        tracing::event!(name: "register card", tracing::Level::INFO, ?id, ?position, ?tooltips, name = ?inner.name);
 
         Ok(Card {
-            inner,
             position,
             owner,
-            crit_chance,
+            cooldown: cooldown.into(),
             tier: self.tier,
             id_for_simulation: id,
-            modifications: self.modifications.clone(),
-            cooldown: cooldown.into(),
             cooldown_effects,
             cooldown_counter: 0,
             freeze_ticks: GameTicks::default(),
             slow_ticks: GameTicks::default(),
             haste_ticks: GameTicks::default(),
+            modification_tooltips: self
+                .modifications
+                .iter()
+                .map(|m| m.derive_tooltips(&inner))
+                .flatten()
+                .collect(),
+            inner,
+            freeze_guard: None,
+            slow_guard: None,
+            haste_guard: None,
         })
     }
 }

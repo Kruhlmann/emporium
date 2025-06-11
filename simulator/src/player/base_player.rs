@@ -1,3 +1,5 @@
+use tracing::Level;
+
 use crate::{GlobalCardId, TICKS_PER_SECOND};
 
 use super::{PlayerHealth, PlayerTemplate};
@@ -20,6 +22,7 @@ impl Player {
     }
 
     pub fn take_damage(&mut self, amount: u32) {
+        tracing::event!(Level::INFO, ?amount, "player take damage");
         let mut remaining = amount as i64;
 
         if self.shield_stacks > 0 {
@@ -34,21 +37,24 @@ impl Player {
     }
 
     pub fn poison(&mut self, amount: u32) {
+        tracing::event!(Level::INFO, ?amount, "poison player");
         self.poison_stacks += amount as i64
     }
 
     pub fn heal(&mut self, amount: u32) {
-        // TODO reduce poison and/or burn by 10%
+        let todo = true; //TODO reduce poison and/or burn by 10%
+        tracing::event!(Level::INFO, ?amount, "heal player");
         self.health.increase_until_max(amount as i64)
     }
 
     pub fn shield(&mut self, amount: u32) {
-        // TODO reduce poison and/or burn by 10%
+        let todo = true; //TODO reduce poison and/or burn by 10%
+        tracing::event!(Level::INFO, ?amount, "shield player");
         self.shield_stacks += amount as i64
     }
 
-    // TODO: This is bad.. increase the tickrate and filter every other tick for cards.
     pub fn burn_tick(&mut self) {
+        let todo = true; //TODO: This is bad.. increase the tickrate and filter every other tick for cards.
         if self.burn_stacks == 0 {
             return;
         }
@@ -74,7 +80,7 @@ impl Player {
 
     pub fn tick(&mut self) {
         if self.dot_counter % *TICKS_PER_SECOND == 0 {
-            // TODO Half-ticks, Half-measure (burn)
+            let todo = true; //TODO Half-ticks, Half-measure (burn)
             for _ in 0..2 {
                 self.burn_tick();
             }

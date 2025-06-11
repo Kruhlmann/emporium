@@ -36,7 +36,7 @@ impl CardEnchantment {
         }
     }
 
-    pub fn tooltips(&self) -> &[Tooltip] {
+    pub fn tooltips(&self) -> Vec<Tooltip> {
         match self {
             CardEnchantment::Heavy(ts)
             | CardEnchantment::Icy(ts)
@@ -49,7 +49,7 @@ impl CardEnchantment {
             | CardEnchantment::Deadly(ts)
             | CardEnchantment::Radiant(ts)
             | CardEnchantment::Obsidian(ts)
-            | CardEnchantment::Golden(ts) => ts,
+            | CardEnchantment::Golden(ts) => ts.to_vec(),
         }
     }
 }

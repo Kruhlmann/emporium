@@ -1,27 +1,18 @@
-use models::v2_0_0::{PlayerTarget, TargetCondition, Tier};
-use rstest::rstest;
-use simulator::{Card, CardTemplate};
+mod aux;
 
-lazy_static::lazy_static! {
-    static ref FANG_CARD_TEMPLATE: CardTemplate = CardTemplate {
-        name: "Fang".to_string(),
-        tier: Tier::Bronze,
-        modifications: vec![],
-    };
-}
+use aux::{BAR_OF_GOLD_CARD_TEMPLATE, FANG_CARD_TEMPLATE};
+use models::v2_0_0::{PlayerTarget, TargetCondition};
+use rstest::rstest;
+use simulator::Card;
 
 #[rstest]
-pub fn test_sanitytarget_ownership() {
+pub fn test_boolean_operations() {
     let card: Card = FANG_CARD_TEMPLATE
         .create_card_on_board(0, PlayerTarget::Player, Default::default())
         .unwrap();
-    let other_card: Card = FANG_CARD_TEMPLATE
-        .create_card_on_board(0, PlayerTarget::Player, Default::default())
-        .unwrap();
-    assert!(card.matches(&TargetCondition::Always, None));
-    assert!(!card.matches(&TargetCondition::Never, None));
-    assert!(card.matches(&TargetCondition::IsSelf, Some(&card)));
-    assert!(!card.matches(&TargetCondition::IsSelf, Some(&other_card)));
+    assert!(card.matches(&(TargetCondition::Never | TargetCondition::Always), None));
+    assert!(!card.matches(&(TargetCondition::Never & TargetCondition::Always), None));
+    assert!(card.matches(&(!TargetCondition::Never), None));
 }
 
 #[rstest]
@@ -29,7 +20,6 @@ pub fn test_target_ownership() {
     let player_card: Card = FANG_CARD_TEMPLATE
         .create_card_on_board(0, PlayerTarget::Player, Default::default())
         .unwrap();
-
     let opponent_card: Card = FANG_CARD_TEMPLATE
         .create_card_on_board(0, PlayerTarget::Opponent, Default::default())
         .unwrap();
@@ -50,4 +40,17 @@ pub fn test_target_ownership() {
         &TargetCondition::HasOwner(PlayerTarget::Player),
         Some(&opponent_card)
     ));
+}
+
+#[rstest]
+pub fn test_target_cooldown() {
+    let card_with_cooldown: Card = FANG_CARD_TEMPLATE
+        .create_card_on_board(0, PlayerTarget::Player, Default::default())
+        .unwrap();
+    let card_without_cooldown: Card = BAR_OF_GOLD_CARD_TEMPLATE
+        .create_card_on_board(0, PlayerTarget::Player, Default::default())
+        .unwrap();
+
+    assert!(card_with_cooldown.matches(&TargetCondition::HasCooldown, None));
+    assert!(!card_without_cooldown.matches(&TargetCondition::HasCooldown, None));
 }

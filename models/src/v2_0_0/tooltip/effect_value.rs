@@ -1,8 +1,9 @@
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EffectValue<T> {
     Flat(T),
-    Percentage(T), // TODO Get rid of this, we have Percentage(..)
+    Percentage(T),
 }
+static TODO: bool = true; //TODO Get rid of this, we have Percentage(..)
 
 impl<T> std::fmt::Display for EffectValue<T>
 where

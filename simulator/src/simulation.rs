@@ -2,12 +2,13 @@ use std::time::Instant;
 
 use indexmap::IndexMap;
 use models::v2_0_0::{
-    CardDerivedProperty, DerivedValue, Effect, Enchantment, PlayerTarget, TargetCondition,
+    CardDerivedProperty, DerivedValue, Effect, Modifier, PlayerTarget, TargetCondition, Tooltip,
 };
 use rand::{Rng, SeedableRng, rngs::StdRng, seq::SliceRandom};
+use tracing::Level;
 
 use crate::{
-    Card, CardModification, CardSummary, CombatEvent, DispatchableEvent, GameTicks, GlobalCardId,
+    Card, CardSummary, CombatEvent, DispatchableEvent, GameTicks, GlobalCardId,
     NUMBER_OF_BOARD_SPACES, Player, SIMULATION_TICK_COUNT, SimulationDrawType, SimulationResult,
     SimulationResultInner, SimulationTemplate, TaggedCombatEvent,
 };
@@ -75,19 +76,6 @@ impl TryFrom<SimulationTemplate> for Simulation {
 }
 
 impl Simulation {
-    // TODO Dont store them like this, keep them indexable at the position for performance during
-    // lookups
-    pub fn card_at_position<'a>(&self, cards: &'a Vec<Card>, position: u8) -> Option<&'a Card> {
-        if let Some(c) = cards.iter().find(|c| c.position == position) {
-            Some(c)
-        } else {
-            self.dispatch_event(&DispatchableEvent::Warning(format!(
-                "attempt to get card at position {position} failed"
-            )));
-            None
-        }
-    }
-
     pub fn get_cards_by_owner(&self, owner: PlayerTarget) -> &Vec<GlobalCardId> {
         match owner {
             PlayerTarget::Player => &self.player.card_ids,
@@ -116,8 +104,6 @@ impl Simulation {
                 .map(|(id, _)| id)
                 .cloned()
                 .collect();
-            #[cfg(feature = "trace")]
-            tracing::debug!(?cards, ?condition, "found cards from condition");
             cards
         } else {
             self.cards
@@ -141,22 +127,7 @@ impl Simulation {
     }
 
     fn dispatch_event(&self, event: &DispatchableEvent) {
-        #[cfg(feature = "trace")]
-        match event {
-            DispatchableEvent::Log(e) => tracing::info!("{e:?}"),
-            DispatchableEvent::Error(e) => tracing::error!("{e:?}"),
-            DispatchableEvent::Warning(e) => tracing::warn!("{e:?}"),
-            DispatchableEvent::Tick => tracing::debug!("tick"),
-            DispatchableEvent::CardFrozen(card, duration) => {
-                tracing::debug!(?card, ?duration, "freeze")
-            }
-            DispatchableEvent::CardSlowed(card, duration) => {
-                tracing::debug!(?card, ?duration, "slow")
-            }
-            DispatchableEvent::CardHasted(card, duration) => {
-                tracing::debug!(?card, ?duration, "haste")
-            }
-        }
+        tracing::event!(name: "event dispatch", Level::INFO, ?event);
         if let Some(ref tx) = self.event_sender {
             let _ = tx.send(event.clone());
         }
@@ -164,8 +135,8 @@ impl Simulation {
 
     fn tick(&mut self) -> Vec<TaggedCombatEvent> {
         let mut events: Vec<TaggedCombatEvent> = Vec::new();
-        self.player.tick();
-        self.opponent.tick();
+        tracing::info_span!("player tick").in_scope(|| self.player.tick());
+        tracing::info_span!("opponent tick").in_scope(|| self.opponent.tick());
         for (_, card) in &mut self.cards {
             for e in card.tick() {
                 events.push(TaggedCombatEvent(card.owner, e));
@@ -192,13 +163,13 @@ impl Simulation {
                 CombatEvent::DealDamage(player_target, damage_derivable, source_id),
             ) => {
                 if let Some(card) = self.cards.get(source_id) {
-                    let did_crit = card.crit_chance.as_fraction() < rng.random::<f64>();
+                    let did_crit = card.compute_crit_chance().as_fraction() < rng.random::<f64>();
                     let damage = match damage_derivable {
                         DerivedValue::Constant(p) => *p,
                         _ => self.derive_value(damage_derivable.clone(), source_id)? as u32,
                     };
                     let damage = if did_crit {
-                        // TODO what about increased crit dmg
+                        let todo = true; //TODO what about increased crit dmg
                         damage + damage
                     } else {
                         damage
@@ -208,14 +179,14 @@ impl Simulation {
                         false => self.opponent.take_damage(damage),
                     }
                 } else {
-                    // TODO else what?
+                    let todo = true; //TODO else what?
                 }
             }
             TaggedCombatEvent(
                 owner,
                 CombatEvent::ApplyBurn(player_target, burn_derivable, source_id),
             ) => {
-                // TODO burn crit
+                let todo = true; //TODO burn crit
                 let burn = match burn_derivable {
                     DerivedValue::Constant(b) => *b,
                     _ => self.derive_value(burn_derivable.clone(), source_id)? as u32,
@@ -229,7 +200,7 @@ impl Simulation {
                 owner,
                 CombatEvent::ApplyPoison(player_target, poison_derivable, source_id),
             ) => {
-                // TODO poison crit
+                let todo = true; //TODO poison crit
                 let poison = match poison_derivable {
                     DerivedValue::Constant(p) => *p,
                     _ => self.derive_value(poison_derivable.clone(), source_id)? as u32,
@@ -243,7 +214,7 @@ impl Simulation {
                 owner,
                 CombatEvent::ApplyShield(player_target, shield, source_id),
             ) => {
-                // TODO shield crit
+                let todo = true; //TODO shield crit
                 let shield_value = match *shield {
                     DerivedValue::Constant(s) => s,
                     _ => self.derive_value(shield.clone(), source_id)? as u32,
@@ -254,7 +225,7 @@ impl Simulation {
                 }
             }
             TaggedCombatEvent(owner, CombatEvent::Heal(player_target, heal, source_id)) => {
-                // TODO heal crit
+                let todo = true; //TODO heal crit
                 let heal_value = match *heal {
                     DerivedValue::Constant(s) => s,
                     _ => self.derive_value(heal.clone(), source_id)? as u32,
@@ -314,15 +285,20 @@ impl Simulation {
                 self.dispatch_log(format!("Slow request: {}", to_slow));
 
                 candidate_ids.retain(|&id| {
-                    !matches!(
-                        self.cards
+                    let todo = true; //TODO optimize
+                    self.cards
+                        .get(&id)
+                        .and_then(|card| {
+                            card.modification_tooltips
+                                .iter()
+                                .find(|m| matches!(m, Tooltip::StaticModifier(Modifier::Radiant)))
+                        })
+                        .is_some()
+                        && self
+                            .cards
                             .get(&id)
-                            .and_then(|card| card.modifications.iter().find(|m| matches!(
-                                m,
-                                CardModification::Enchanted(Enchantment::Radiant)
-                            ))),
-                        Some(_)
-                    )
+                            .and_then(|card| Some(card.cooldown > GameTicks(0)))
+                            .is_some()
                 });
 
                 let (mut not_slowed, mut already_slowed): (Vec<_>, Vec<_>) =
@@ -355,6 +331,8 @@ impl Simulation {
 
                     if let Some(card_mut) = self.cards.get_mut(&id) {
                         card_mut.slow(*duration);
+                    } else {
+                        tracing::warn!("slow unknown item {id}");
                     }
                 }
             }
@@ -367,15 +345,20 @@ impl Simulation {
                 self.dispatch_log(format!("Freeze request: {}", to_freeze));
 
                 candidate_ids.retain(|&id| {
-                    !matches!(
-                        self.cards
+                    let todo = true; //TODO optimize
+                    self.cards
+                        .get(&id)
+                        .and_then(|card| {
+                            card.modification_tooltips
+                                .iter()
+                                .find(|m| matches!(m, Tooltip::StaticModifier(Modifier::Radiant)))
+                        })
+                        .is_none()
+                        && self
+                            .cards
                             .get(&id)
-                            .and_then(|card| card.modifications.iter().find(|m| matches!(
-                                m,
-                                CardModification::Enchanted(Enchantment::Radiant)
-                            ))),
-                        Some(_)
-                    )
+                            .and_then(|card| Some(card.cooldown > GameTicks(0)))
+                            .is_some()
                 });
 
                 let (mut not_frozen, mut already_frozen): (Vec<_>, Vec<_>) =
@@ -421,12 +404,12 @@ impl Simulation {
         Ok(())
     }
 
-    // TODO probably wont scale long term with just u32
     pub fn derive_value(
         &self,
         value: DerivedValue<u32>,
         source_id: &GlobalCardId,
     ) -> anyhow::Result<f32> {
+        let todo = true; //TODO probably wont scale long term with just u32
         let v = value.clone();
         match value {
             DerivedValue::Constant(..) => anyhow::bail!("constants do not need to be derived"),
@@ -437,7 +420,7 @@ impl Simulation {
                     .map(|id| self.cards.get(id))
                     .flatten()
                     .collect();
-                // TODO: Use the modifications as well
+                let todo = true; //TODO: Use the modifications as well
                 match card_derived_property {
                     CardDerivedProperty::Value => Ok(modifier
                         * targets
@@ -509,7 +492,6 @@ impl Simulation {
     pub fn run_once_with_rng(&mut self, mut rng: StdRng) -> SimulationResult {
         let t_start = Instant::now();
         let mut events = Vec::with_capacity(*SIMULATION_TICK_COUNT);
-
         for _ in 0..*SIMULATION_TICK_COUNT {
             if let Some(result) = self.get_exit_condition(Instant::now(), t_start, &events) {
                 return result;
@@ -556,9 +538,11 @@ impl Simulation {
         iterations: usize,
         rng: rand::rngs::StdRng,
     ) -> Vec<SimulationResult> {
-        (0..iterations)
-            .into_iter()
-            .map(|_| self.run_once_with_rng(rng.clone()))
-            .collect()
+        let mut results: Vec<SimulationResult> = Vec::new();
+        for _ in 0..iterations {
+            tracing::info_span!("simulation_iteration")
+                .in_scope(|| results.push(self.run_once_with_rng(rng.clone())));
+        }
+        results
     }
 }

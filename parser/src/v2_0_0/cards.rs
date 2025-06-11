@@ -68,8 +68,8 @@ impl TryFrom<&serde_json::Value> for JsonCardFields {
             })
             .collect::<anyhow::Result<Vec<String>>>()?
             .join(",\n                ");
+        let todo = true; //TODO: don't have it on cooldown - need custom enchant parser
         let enchantments = enchantment_list
-            // TODO: don't have it on cooldown - need custom enchant parser
             .as_array()
             .ok_or(anyhow::anyhow!("invalid enchantment list"))?
             .iter()
@@ -185,7 +185,7 @@ impl CardSourceBuilder {
             if std::fs::exists(&image_backdrop_path)? {
                 return Ok::<(), anyhow::Error>(());
             }
-            eprintln!("cargo:warning=backdrop for {image_backdrop_path:?} not found; generating",);
+            eprintln!("cargo:warning=backdrop for {image_backdrop_path:?} not found; generating from {image_path:?}",);
             let img = image::open(&image_path)?;
             let (w, h) = img.dimensions();
 
@@ -254,16 +254,15 @@ impl CardSourceBuilder {
         let image_backdrop_path = image_directory.join(&image_backdrop_filename);
 
         if let Ok(true) = std::fs::exists(&image_path) {
-            if cfg!(feature = "thumbnail-backdrops") {
-                return CardSourceBuilder::write_thumbnail_backdrop_files(
-                    &image_path,
-                    &image_backdrop_path,
-                    size,
-                )
-                .await;
-            } else {
-                return Ok(());
-            }
+            #[cfg(feature = "thumbnail-backdrops")]
+            return CardSourceBuilder::write_thumbnail_backdrop_files(
+                &image_path,
+                &image_backdrop_path,
+                size,
+            )
+            .await;
+            #[cfg(not(feature = "thumbnail-backdrops"))]
+            return Ok(());
         }
 
         let _permit = crate::HTTP_REQUEST_THROTTLE.acquire().await;
@@ -278,7 +277,7 @@ impl CardSourceBuilder {
 
         let response = reqwest::get(&url).await?;
         response.error_for_status_ref()?;
-        let mut content = response.bytes().await?;
+        let content = response.bytes().await?;
         std::io::copy(&mut content.as_ref(), &mut file).inspect_err(|error| {
             eprintln!(
                 "cargo:error=unable to set file content {:?}: {error}",
@@ -294,16 +293,14 @@ impl CardSourceBuilder {
 
         #[cfg(feature = "thumbnail-backdrops")]
         std::fs::remove_file(&image_backdrop_path)?;
-        if cfg!(feature = "thumbnail-backdrops") {
-            CardSourceBuilder::write_thumbnail_backdrop_files(
-                &image_path,
-                &image_backdrop_path,
-                size,
-            )
-            .await
-        } else {
-            Ok(())
-        }
+        #[cfg(feature = "thumbnail-backdrops")]
+        return CardSourceBuilder::write_thumbnail_backdrop_files(
+            &image_path,
+            &image_backdrop_path,
+            size,
+        )
+        .await;
+        Ok(())
     }
 
     pub async fn build_source_tree(self, root: &PathBuf) -> anyhow::Result<()> {

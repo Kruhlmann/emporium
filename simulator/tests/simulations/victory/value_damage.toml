@@ -1,0 +1,14 @@
+[player]
+health = 1000
+
+[[player.cards]]
+name = "Pygmalien's Dagger"
+tier = "Diamond"
+
+[opponent]
+health = 1000
+
+[[opponent.cards]]
+name = "Pygmalien's Dagger"
+tier = "Gold"
+modifications = [{ Value = 16 }]
