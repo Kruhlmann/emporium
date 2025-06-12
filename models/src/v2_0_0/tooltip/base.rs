@@ -73,8 +73,8 @@ impl Tooltip {
     }
 
     fn from_first_time(tooltip: &str) -> anyhow::Result<Tooltip> {
-        let effect_event = if let Some(rest) = tooltip
-            .strip_prefix("the first time you fall below half health each fight, ")
+        let effect_event = if let Some(rest) =
+            tooltip.strip_prefix("the first time you fall below half health each fight, ")
         {
             EffectEvent::OnFirstTime(
                 GlobalEvent::PlayerFallsBelowHpPercentage(50.0),
@@ -87,7 +87,9 @@ impl Tooltip {
     }
 
     fn from_when(tooltip: &str) -> anyhow::Result<Tooltip> {
-        let effect_event = if let Some(rest) = tooltip.strip_prefix("when you use an adjacent item,") {
+        let effect_event = if let Some(rest) =
+            tooltip.strip_prefix("when you use an adjacent item,")
+        {
             EffectEvent::OnCardUsed(TargetCondition::Adjacent, Effect::from_tooltip_str(rest))
         } else if let Some(rest) = tooltip.strip_prefix("when you use an item,") {
             EffectEvent::OnCardUsed(
@@ -96,11 +98,12 @@ impl Tooltip {
             )
         } else if let Some(rest) = tooltip.strip_prefix("when you sell this") {
             EffectEvent::OnCardSold(Effect::from_tooltip_str(rest))
+        } else if let Some(rest) = tooltip.strip_prefix("when this is transformed,") {
+            EffectEvent::OnCardTransformed(Effect::from_tooltip_str(rest))
         } else if let Some(rest) = tooltip.strip_prefix("when you use shield or heal,") {
             EffectEvent::OnCardUsed(
                 TargetCondition::HasOwner(PlayerTarget::Player)
-                    & (TargetCondition::HasTag(Tag::Heal)
-                        | TargetCondition::HasTag(Tag::Shield)),
+                    & (TargetCondition::HasTag(Tag::Heal) | TargetCondition::HasTag(Tag::Shield)),
                 Effect::from_tooltip_str(rest),
             )
         } else if let Some(rest) = tooltip.strip_prefix("when you crit,") {

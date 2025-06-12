@@ -14,6 +14,7 @@ lazy_static::lazy_static! {
 #[derive(Debug, Clone, PartialEq)]
 pub enum EffectEvent {
     OnCooldown(Effect),
+    OnCardTransformed(Effect),
     OnDayStart(Effect),
     OnWinVersusHero(Effect),
     OnFightStart(Effect),
@@ -29,6 +30,7 @@ impl std::fmt::Display for EffectEvent {
         match self {
             EffectEvent::OnCooldown(i) => write!(f, "EffectEvent::OnCooldown({i})"),
             EffectEvent::OnCardSold(i) => write!(f, "EffectEvent::OnCardSold({i})"),
+            EffectEvent::OnCardTransformed(i) => write!(f, "EffectEvent::OnCardTransformed({i})"),
             EffectEvent::OnDayStart(i) => write!(f, "EffectEvent::OnDayStart({i})"),
             EffectEvent::OnWinVersusHero(i) => write!(f, "EffectEvent::OnWinVersusHero({i})"),
             EffectEvent::OnFightStart(i) => write!(f, "EffectEvent::OnFightStart({i})"),

@@ -9,7 +9,14 @@ use super::{
     CardTarget, Condition, EffectValue, ObtainedEffectItem, PlayerTarget, TargetCondition,
 };
 
+static TODO: bool = true; // TODO: The primitive ones are duplicated
 lazy_static::lazy_static! {
+    pub static ref EFFECT_REDUCE_CD_FLAT: Regex = Regex::new(r"^reduce this item's cooldown by (\d+) second.s. for the fight\.?$").unwrap();
+    pub static ref EFFECT_DEAL_DAMAGE: Regex = Regex::new(r"^deal damage (\d+)\.?$").unwrap();
+    pub static ref EFFECT_HEAL: Regex = Regex::new(r"^heal (\d+)\.?$").unwrap();
+    pub static ref EFFECT_POISON: Regex = Regex::new(r"^poison (\d+)\.?$").unwrap();
+    pub static ref EFFECT_BURN: Regex = Regex::new(r"^burn (\d+)\.?$").unwrap();
+    pub static ref EFFECT_SHIELD: Regex = Regex::new(r"^shield (\d+)\.?$").unwrap();
     pub static ref EFFECT_GET_ITEMS_REGEX: Regex = Regex::new(r"^get\s+(a|\d+)\s+([\p{L} ]+)\.?$").unwrap();
     pub static ref EFFECT_GET_TAG_CONDITIONAL_ITEMS_REGEX: Regex = Regex::new(r"^get a ([\p{L} ]+). if you have a ([\p{L} ]+), get a second ([\p{L} ]+)\.?").unwrap();
     pub static ref EFFECT_GET_TRIPLE_SINGULAR_ITEMS_REGEX: Regex = Regex::new(r"^get a ([\p{L} ]+), ([\p{L} ]+) and ([\p{L} ]+)\.?$").unwrap();
@@ -156,6 +163,70 @@ impl Effect {
 
         if tooltip == "use this." {
             return Effect::Use(CardTarget(1, TargetCondition::IsSelf));
+        }
+
+        if let Some(captures) = EFFECT_REDUCE_CD_FLAT.captures(tooltip) {
+            if let Some(amount_str) = captures.get(1) {
+                let amount = match amount_str.as_str().parse::<u32>() {
+                    Ok(c) => c,
+                    Err(_) => return Effect::Raw(tooltip.to_string()),
+                };
+                let todo = (); // TODO: this is sus
+                return Effect::CooldownReduction(
+                    CardTarget(1, TargetCondition::IsSelf),
+                    EffectValue::Flat(amount as f64),
+                );
+            }
+        }
+
+        if let Some(captures) = EFFECT_DEAL_DAMAGE.captures(tooltip) {
+            if let Some(amount_str) = captures.get(1) {
+                let amount = match amount_str.as_str().parse::<u32>() {
+                    Ok(c) => c,
+                    Err(_) => return Effect::Raw(tooltip.to_string()),
+                };
+                return Effect::DealDamage(PlayerTarget::Opponent, DerivedValue::Constant(amount));
+            }
+        }
+
+        if let Some(captures) = EFFECT_POISON.captures(tooltip) {
+            if let Some(amount_str) = captures.get(1) {
+                let amount = match amount_str.as_str().parse::<u32>() {
+                    Ok(c) => c,
+                    Err(_) => return Effect::Raw(tooltip.to_string()),
+                };
+                return Effect::Poison(PlayerTarget::Opponent, DerivedValue::Constant(amount));
+            }
+        }
+
+        if let Some(captures) = EFFECT_BURN.captures(tooltip) {
+            if let Some(amount_str) = captures.get(1) {
+                let amount = match amount_str.as_str().parse::<u32>() {
+                    Ok(c) => c,
+                    Err(_) => return Effect::Raw(tooltip.to_string()),
+                };
+                return Effect::Burn(PlayerTarget::Opponent, DerivedValue::Constant(amount));
+            }
+        }
+
+        if let Some(captures) = EFFECT_HEAL.captures(tooltip) {
+            if let Some(amount_str) = captures.get(1) {
+                let amount = match amount_str.as_str().parse::<u32>() {
+                    Ok(c) => c,
+                    Err(_) => return Effect::Raw(tooltip.to_string()),
+                };
+                return Effect::Heal(PlayerTarget::Player, DerivedValue::Constant(amount));
+            }
+        }
+
+        if let Some(captures) = EFFECT_SHIELD.captures(tooltip) {
+            if let Some(amount_str) = captures.get(1) {
+                let amount = match amount_str.as_str().parse::<u32>() {
+                    Ok(c) => c,
+                    Err(_) => return Effect::Raw(tooltip.to_string()),
+                };
+                return Effect::Shield(PlayerTarget::Player, DerivedValue::Constant(amount));
+            }
         }
 
         if let Some(captures) = EFFECT_GET_ITEMS_REGEX.captures(tooltip) {
