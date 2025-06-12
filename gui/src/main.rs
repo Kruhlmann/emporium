@@ -4,8 +4,8 @@ use std::{
     collections::HashSet,
     path::PathBuf,
     sync::{
-        Arc,
         mpsc::{Receiver, Sender},
+        Arc,
     },
     thread,
     time::{Duration, Instant},
@@ -134,11 +134,13 @@ impl App {
         let simulation: Simulation = SimulationTemplate {
             player: PlayerTemplate {
                 health: 300,
+                regen: 0,
                 card_templates: vec![],
                 skill_templates: vec![],
             },
             opponent: PlayerTemplate {
                 health: 300,
+                regen: 0,
                 card_templates: vec![],
                 skill_templates: vec![],
             },
