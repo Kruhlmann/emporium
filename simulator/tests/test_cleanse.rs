@@ -10,6 +10,7 @@ use simulator::PlayerTemplate;
 fn test_cleanse() -> Result<(), Box<dyn std::error::Error>> {
     let mut player = PlayerTemplate {
         health: 100,
+        regen: 0,
         card_templates: vec![],
         skill_templates: vec![],
     }

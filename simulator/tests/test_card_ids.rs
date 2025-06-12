@@ -14,11 +14,13 @@ fn simulation_assigns_card_ids_to_correct_players() {
     let template = SimulationTemplate {
         player: PlayerTemplate {
             health: 20,
+            regen: 0,
             card_templates: vec![FANG_CARD_TEMPLATE.clone()],
             skill_templates: vec![],
         },
         opponent: PlayerTemplate {
             health: 20,
+            regen: 0,
             card_templates: vec![FANG_CARD_TEMPLATE.clone()],
             skill_templates: vec![],
         },
