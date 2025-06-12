@@ -1,0 +1,18 @@
+use rstest::rstest;
+use simulator::PlayerTemplate;
+
+#[rstest]
+fn test_cleanse() -> Result<(), Box<dyn std::error::Error>> {
+    let mut player = PlayerTemplate {
+        health: 100,
+        card_templates: vec![],
+        skill_templates: vec![],
+    }
+    .create_player(vec![])?;
+    player.burn_stacks = 100;
+    player.poison_stacks = 100;
+    player.heal(100);
+    assert_eq!(player.burn_stacks, 95);
+    assert_eq!(player.poison_stacks, 95);
+    Ok(())
+}

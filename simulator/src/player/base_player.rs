@@ -44,6 +44,8 @@ impl Player {
     pub fn heal(&mut self, amount: u32) {
         let todo = true; //TODO reduce poison and/or burn by 10%
         tracing::event!(Level::INFO, ?amount, "heal player");
+        self.poison_stacks = std::cmp::max(0, self.poison_stacks - (0.05 * amount as f32) as i64);
+        self.burn_stacks = std::cmp::max(0, self.burn_stacks - (0.05 * amount as f32) as i64);
         self.health.increase_until_max(amount as i64)
     }
 
