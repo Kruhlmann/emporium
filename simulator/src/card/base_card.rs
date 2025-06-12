@@ -47,7 +47,6 @@ impl Card {
             }
         }
         if self.slow_ticks.0 > 0 {
-            panic!("AA");
             self.slow_ticks.0 -= 1;
             if self.slow_ticks.0 == 0 {
                 let _ = self.slow_guard.take();
@@ -73,9 +72,9 @@ impl Card {
     pub fn compute_cost(&self) -> u32 {
         let base_cost = self.tier.scale_cost(self.inner.size.base_cost());
         let todo = true; //TODO check fi this applies
-        // Tooltip::ConditionalModifier(condition, Modifier) => todo!(),
+                         // Tooltip::ConditionalModifier(condition, Modifier) => todo!(),
         let todo = true; //TODO check if this applies
-        // Tooltip::SellsForGold => todo!(),
+                         // Tooltip::SellsForGold => todo!(), // this is empty in the dataset
         let modification_cost = self
             .tier
             .select(&self.inner.tiers)
@@ -87,7 +86,7 @@ impl Card {
             .sum::<u32>();
         base_cost + modification_cost
     }
-    #[tracing::instrument]
+
     pub fn freeze(&mut self, duration: GameTicks) {
         tracing::event!(
             name: "freeze item",

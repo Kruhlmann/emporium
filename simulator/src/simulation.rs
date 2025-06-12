@@ -4,13 +4,13 @@ use indexmap::IndexMap;
 use models::v2_0_0::{
     CardDerivedProperty, DerivedValue, Effect, Modifier, PlayerTarget, TargetCondition, Tooltip,
 };
-use rand::{Rng, SeedableRng, rngs::StdRng, seq::SliceRandom};
+use rand::{rngs::StdRng, seq::SliceRandom, Rng, SeedableRng};
 use tracing::Level;
 
 use crate::{
-    Card, CardSummary, CombatEvent, DispatchableEvent, GameTicks, GlobalCardId,
-    NUMBER_OF_BOARD_SPACES, Player, SIMULATION_TICK_COUNT, SimulationDrawType, SimulationResult,
-    SimulationResultInner, SimulationTemplate, TaggedCombatEvent,
+    Card, CardSummary, CombatEvent, DispatchableEvent, GameTicks, GlobalCardId, Player,
+    SimulationDrawType, SimulationResult, SimulationResultInner, SimulationTemplate,
+    TaggedCombatEvent, NUMBER_OF_BOARD_SPACES, SIMULATION_TICK_COUNT,
 };
 
 #[derive(Clone, Debug)]
@@ -293,7 +293,7 @@ impl Simulation {
                                 .iter()
                                 .find(|m| matches!(m, Tooltip::StaticModifier(Modifier::Radiant)))
                         })
-                        .is_some()
+                        .is_none()
                         && self
                             .cards
                             .get(&id)
