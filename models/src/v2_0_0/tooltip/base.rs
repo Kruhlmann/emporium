@@ -1,5 +1,3 @@
-use regex::Regex;
-
 use crate::v2_0_0::{EffectValue, Percentage, Tag};
 
 use super::{
@@ -7,20 +5,11 @@ use super::{
     Modifier, PlayerTarget, TargetCondition,
 };
 
-lazy_static::lazy_static! {
-    pub static ref NUMERIC_REGEX: Regex = Regex::new(r"[-+]?\d*\.?\d+").unwrap();
-    pub static ref STATIC_WEAPON_DAMAGE: Regex = Regex::new(r"^your weapons deal \+(\d+) damage\.$").unwrap();
-    pub static ref HASTE_N_FOR_M: Regex = Regex::new(r"^haste (\d+) items? for (\d+) second\(s\)\.$").unwrap();
-    pub static ref SLOW_N_FOR_M: Regex = Regex::new(r"^slow (\d+) items? for (\d+) second\(s\)\.$").unwrap();
-    pub static ref FREEZE_N_FOR_M: Regex = Regex::new(r"^freeze\s+(\d+)\s+item(?:s|\(s\))?\s+for\s+(\d+)\s+second(?:s|\(s\))?\.$").unwrap();
-    pub static ref FREEZE_N_FOR_M_OF_SIZE: Regex = Regex::new(r"^freeze\s+(\d+)\s+(small|medium|large)\s+item(?:s|\(s\))?\s+for\s+(\d+)\s+second(?:s|\(s\))?\.$").unwrap();
-}
-
 pub fn parse_numeric<T: std::str::FromStr>(cooldown_str: &str) -> anyhow::Result<T>
 where
     T::Err: std::fmt::Display,
 {
-    let cooldown = NUMERIC_REGEX
+    let cooldown = crate::v2_0_0::re::NUMERIC_REGEX
         .find(cooldown_str)
         .ok_or(anyhow::anyhow!("no cooldown value in tooltip"))?
         .as_str()
@@ -272,7 +261,7 @@ impl Tooltip {
                 ),
             )));
         }
-        if let Some(capture) = HASTE_N_FOR_M.captures(value) {
+        if let Some(capture) = crate::v2_0_0::re::HASTE_N_FOR_M.captures(value) {
             if let (Some(n_str), Some(m_str)) = (capture.get(1), capture.get(2)) {
                 match (
                     n_str.as_str().parse::<usize>(),
@@ -288,7 +277,7 @@ impl Tooltip {
                 }
             }
         }
-        if let Some(capture) = SLOW_N_FOR_M.captures(value) {
+        if let Some(capture) = crate::v2_0_0::re::SLOW_N_FOR_M.captures(value) {
             if let (Some(n_str), Some(m_str)) = (capture.get(1), capture.get(2)) {
                 match (
                     n_str.as_str().parse::<usize>(),
@@ -304,7 +293,7 @@ impl Tooltip {
                 }
             }
         }
-        if let Some(capture) = FREEZE_N_FOR_M.captures(value) {
+        if let Some(capture) = crate::v2_0_0::re::FREEZE_N_FOR_M.captures(value) {
             if let (Some(n_str), Some(m_str)) = (capture.get(1), capture.get(2)) {
                 match (
                     n_str.as_str().parse::<usize>(),
@@ -320,7 +309,7 @@ impl Tooltip {
                 }
             }
         }
-        if let Some(capture) = FREEZE_N_FOR_M_OF_SIZE.captures(value) {
+        if let Some(capture) = crate::v2_0_0::re::FREEZE_N_FOR_M_OF_SIZE.captures(value) {
             if let (Some(n_str), Some(size_str), Some(m_str)) =
                 (capture.get(1), capture.get(2), capture.get(3))
             {
@@ -344,7 +333,7 @@ impl Tooltip {
                 }
             }
         }
-        if let Some(capture) = STATIC_WEAPON_DAMAGE.captures(value) {
+        if let Some(capture) = crate::v2_0_0::re::STATIC_WEAPON_DAMAGE.captures(value) {
             if let Some(damage_str) = capture.get(1) {
                 if let Ok(damage) = damage_str.as_str().parse::<u32>() {
                     return Tooltip::StaticModifier(Modifier::WeaponDamage(EffectValue::Flat(

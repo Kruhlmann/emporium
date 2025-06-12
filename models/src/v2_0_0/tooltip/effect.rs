@@ -1,7 +1,6 @@
 use std::str::FromStr;
 
 use heck::ToTitleCase;
-use regex::Regex;
 
 use crate::v2_0_0::{Percentage, Tag, Tier};
 
@@ -10,30 +9,7 @@ use super::{
 };
 
 static TODO: bool = true; // TODO: The primitive ones are duplicated
-lazy_static::lazy_static! {
-    pub static ref EFFECT_REDUCE_CD_FLAT: Regex = Regex::new(r"^reduce this item's cooldown by (\d+) second.s. for the fight\.?$").unwrap();
-    pub static ref EFFECT_DEAL_DAMAGE: Regex = Regex::new(r"^deal damage (\d+)\.?$").unwrap();
-    pub static ref EFFECT_HEAL: Regex = Regex::new(r"^heal (\d+)\.?$").unwrap();
-    pub static ref EFFECT_POISON: Regex = Regex::new(r"^poison (\d+)\.?$").unwrap();
-    pub static ref EFFECT_BURN: Regex = Regex::new(r"^burn (\d+)\.?$").unwrap();
-    pub static ref EFFECT_SHIELD: Regex = Regex::new(r"^shield (\d+)\.?$").unwrap();
-    pub static ref EFFECT_GET_ITEMS_REGEX: Regex = Regex::new(r"^get\s+(a|\d+)\s+([\p{L} ]+)\.?$").unwrap();
-    pub static ref EFFECT_GET_TAG_CONDITIONAL_ITEMS_REGEX: Regex = Regex::new(r"^get a ([\p{L} ]+). if you have a ([\p{L} ]+), get a second ([\p{L} ]+)\.?").unwrap();
-    pub static ref EFFECT_GET_TRIPLE_SINGULAR_ITEMS_REGEX: Regex = Regex::new(r"^get a ([\p{L} ]+), ([\p{L} ]+) and ([\p{L} ]+)\.?$").unwrap();
-    pub static ref EFFECT_GAIN_PERMANENT_MAX_HP: Regex = Regex::new(r"^permanently gain (\d+) max health\.?$").unwrap();
-    pub static ref EFFECT_SPEND_GOLD_FOR_EFFECT: Regex = Regex::new(r"^spend (\d+) gold to ([\p{L} ]+)\.?$").unwrap();
-    pub static ref EFFECT_THIS_GAINS_MAX_AMMO: Regex = Regex::new(r"^this gains (\d+) max ammo\.?$").unwrap();
-    pub static ref EFFECT_POISON_SELF: Regex = Regex::new(r"^poison yourself (\d+)\.?$").unwrap();
-    pub static ref EFFECT_UPGRADE_RANDOM_PIGGLE: Regex = Regex::new(r"^upgrade a random piggle\.?$").unwrap();
-    pub static ref EFFECT_GAIN_GOLD: Regex = Regex::new(r"^gain (\d+) gold\.?$").unwrap();
-    pub static ref EFFECT_UPGRADE_LOWER_TIER_TAGGED: Regex = Regex::new(r"^upgrade a ([\p{L} ]+) of a lower tier\.?$").unwrap();
-    pub static ref EFFECT_BURN_FROM_DAMAGE: Regex = Regex::new(r"burn equal to (\d+)% of this item's damage.").unwrap();
-    pub static ref EFFECT_HEAL_FROM_DAMAGE: Regex = Regex::new(r"heal equal to (\d+)% of this item's damage.").unwrap();
-    pub static ref EFFECT_HEAL_FROM_DAMAGE_FULL: Regex = Regex::new(r"heal equal to this item's damage.").unwrap();
-    pub static ref EFFECT_SHIELD_FROM_DAMAGE: Regex = Regex::new(r"shield equal to (\d+)% of this item's damage.").unwrap();
-    pub static ref EFFECT_SHIELD_FROM_DAMAGE_FULL: Regex = Regex::new(r"shield equal to this item's damage.").unwrap();
-    pub static ref EFFECT_POISON_FROM_DAMAGE: Regex = Regex::new(r"poison equal to (\d+)% of this item's damage.").unwrap();
-}
+lazy_static::lazy_static! {}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum CardDerivedProperty {
@@ -165,7 +141,7 @@ impl Effect {
             return Effect::Use(CardTarget(1, TargetCondition::IsSelf));
         }
 
-        if let Some(captures) = EFFECT_REDUCE_CD_FLAT.captures(tooltip) {
+        if let Some(captures) = crate::v2_0_0::re::EFFECT_REDUCE_CD_FLAT.captures(tooltip) {
             if let Some(amount_str) = captures.get(1) {
                 let amount = match amount_str.as_str().parse::<u32>() {
                     Ok(c) => c,
@@ -179,7 +155,7 @@ impl Effect {
             }
         }
 
-        if let Some(captures) = EFFECT_DEAL_DAMAGE.captures(tooltip) {
+        if let Some(captures) = crate::v2_0_0::re::EFFECT_DEAL_DAMAGE.captures(tooltip) {
             if let Some(amount_str) = captures.get(1) {
                 let amount = match amount_str.as_str().parse::<u32>() {
                     Ok(c) => c,
@@ -189,7 +165,17 @@ impl Effect {
             }
         }
 
-        if let Some(captures) = EFFECT_POISON.captures(tooltip) {
+        if let Some(captures) = crate::v2_0_0::re::EFFECT_DEAL_DAMAGE_WEIRD.captures(tooltip) {
+            if let Some(amount_str) = captures.get(1) {
+                let amount = match amount_str.as_str().parse::<u32>() {
+                    Ok(c) => c,
+                    Err(_) => return Effect::Raw(tooltip.to_string()),
+                };
+                return Effect::DealDamage(PlayerTarget::Opponent, DerivedValue::Constant(amount));
+            }
+        }
+
+        if let Some(captures) = crate::v2_0_0::re::EFFECT_POISON.captures(tooltip) {
             if let Some(amount_str) = captures.get(1) {
                 let amount = match amount_str.as_str().parse::<u32>() {
                     Ok(c) => c,
@@ -199,7 +185,7 @@ impl Effect {
             }
         }
 
-        if let Some(captures) = EFFECT_BURN.captures(tooltip) {
+        if let Some(captures) = crate::v2_0_0::re::EFFECT_BURN.captures(tooltip) {
             if let Some(amount_str) = captures.get(1) {
                 let amount = match amount_str.as_str().parse::<u32>() {
                     Ok(c) => c,
@@ -209,7 +195,7 @@ impl Effect {
             }
         }
 
-        if let Some(captures) = EFFECT_HEAL.captures(tooltip) {
+        if let Some(captures) = crate::v2_0_0::re::EFFECT_HEAL.captures(tooltip) {
             if let Some(amount_str) = captures.get(1) {
                 let amount = match amount_str.as_str().parse::<u32>() {
                     Ok(c) => c,
@@ -219,7 +205,7 @@ impl Effect {
             }
         }
 
-        if let Some(captures) = EFFECT_SHIELD.captures(tooltip) {
+        if let Some(captures) = crate::v2_0_0::re::EFFECT_SHIELD.captures(tooltip) {
             if let Some(amount_str) = captures.get(1) {
                 let amount = match amount_str.as_str().parse::<u32>() {
                     Ok(c) => c,
@@ -229,7 +215,7 @@ impl Effect {
             }
         }
 
-        if let Some(captures) = EFFECT_GET_ITEMS_REGEX.captures(tooltip) {
+        if let Some(captures) = crate::v2_0_0::re::EFFECT_GET_ITEMS_REGEX.captures(tooltip) {
             if let (Some(count), Some(name)) = (captures.get(1), captures.get(2)) {
                 let count_str = count.as_str();
                 let count = if count_str == "a" {
@@ -245,7 +231,9 @@ impl Effect {
                 return Effect::ObtainItem(vec![obtained_item]);
             }
         }
-        if let Some(captures) = EFFECT_GET_TRIPLE_SINGULAR_ITEMS_REGEX.captures(tooltip) {
+        if let Some(captures) =
+            crate::v2_0_0::re::EFFECT_GET_TRIPLE_SINGULAR_ITEMS_REGEX.captures(tooltip)
+        {
             if let (Some(item_a), Some(item_b), Some(item_c)) =
                 (captures.get(1), captures.get(2), captures.get(3))
             {
@@ -256,7 +244,9 @@ impl Effect {
                 ]);
             }
         }
-        if let Some(captures) = EFFECT_GET_TAG_CONDITIONAL_ITEMS_REGEX.captures(tooltip) {
+        if let Some(captures) =
+            crate::v2_0_0::re::EFFECT_GET_TAG_CONDITIONAL_ITEMS_REGEX.captures(tooltip)
+        {
             if let (Some(item_a), Some(tag_str), Some(item_b)) =
                 (captures.get(1), captures.get(2), captures.get(3))
             {
@@ -272,7 +262,7 @@ impl Effect {
                 }
             }
         }
-        if let Some(captures) = EFFECT_POISON_SELF.captures(tooltip) {
+        if let Some(captures) = crate::v2_0_0::re::EFFECT_POISON_SELF.captures(tooltip) {
             if let Some(poison_str) = captures.get(1) {
                 if let Ok(poison) = poison_str
                     .as_str()
@@ -283,14 +273,14 @@ impl Effect {
                 }
             }
         }
-        if let Some(captures) = EFFECT_GAIN_PERMANENT_MAX_HP.captures(tooltip) {
+        if let Some(captures) = crate::v2_0_0::re::EFFECT_GAIN_PERMANENT_MAX_HP.captures(tooltip) {
             if let Some(hp_str) = captures.get(1) {
                 if let Ok(hp) = hp_str.as_str().parse::<u32>().map(DerivedValue::Constant) {
                     return Effect::PermanentMaxHealthIncrease(hp);
                 }
             }
         }
-        if let Some(captures) = EFFECT_SPEND_GOLD_FOR_EFFECT.captures(tooltip) {
+        if let Some(captures) = crate::v2_0_0::re::EFFECT_SPEND_GOLD_FOR_EFFECT.captures(tooltip) {
             if let (Some(gold_str), Some(effect_str)) = (captures.get(1), captures.get(2)) {
                 if let Ok(gold) = gold_str.as_str().parse::<u32>() {
                     return Effect::SpendGoldForEffect(
@@ -301,7 +291,7 @@ impl Effect {
             }
         }
 
-        if let Some(captures) = EFFECT_POISON_FROM_DAMAGE.captures(tooltip) {
+        if let Some(captures) = crate::v2_0_0::re::EFFECT_POISON_FROM_DAMAGE.captures(tooltip) {
             if let Some(poison_str) = captures.get(1) {
                 if let Ok(poison_pct) = poison_str
                     .as_str()
@@ -320,7 +310,7 @@ impl Effect {
             }
         }
 
-        if let Some(captures) = EFFECT_SHIELD_FROM_DAMAGE.captures(tooltip) {
+        if let Some(captures) = crate::v2_0_0::re::EFFECT_SHIELD_FROM_DAMAGE.captures(tooltip) {
             if let Some(shield_str) = captures.get(1) {
                 if let Ok(shield_pct) = shield_str
                     .as_str()
@@ -339,7 +329,7 @@ impl Effect {
             }
         }
 
-        if let Some(..) = EFFECT_SHIELD_FROM_DAMAGE_FULL.captures(tooltip) {
+        if let Some(..) = crate::v2_0_0::re::EFFECT_SHIELD_FROM_DAMAGE_FULL.captures(tooltip) {
             return Effect::Shield(
                 PlayerTarget::Player,
                 DerivedValue::FromCard(
@@ -350,7 +340,7 @@ impl Effect {
             );
         }
 
-        if let Some(captures) = EFFECT_HEAL_FROM_DAMAGE.captures(tooltip) {
+        if let Some(captures) = crate::v2_0_0::re::EFFECT_HEAL_FROM_DAMAGE.captures(tooltip) {
             if let Some(heal_str) = captures.get(1) {
                 if let Ok(heal_pct) = heal_str
                     .as_str()
@@ -369,7 +359,7 @@ impl Effect {
             }
         }
 
-        if let Some(..) = EFFECT_HEAL_FROM_DAMAGE_FULL.captures(tooltip) {
+        if let Some(..) = crate::v2_0_0::re::EFFECT_HEAL_FROM_DAMAGE_FULL.captures(tooltip) {
             return Effect::Heal(
                 PlayerTarget::Player,
                 DerivedValue::FromCard(
@@ -380,7 +370,7 @@ impl Effect {
             );
         }
 
-        if let Some(captures) = EFFECT_BURN_FROM_DAMAGE.captures(tooltip) {
+        if let Some(captures) = crate::v2_0_0::re::EFFECT_BURN_FROM_DAMAGE.captures(tooltip) {
             if let Some(burn_str) = captures.get(1) {
                 if let Ok(burn_pct) = burn_str
                     .as_str()
@@ -399,14 +389,14 @@ impl Effect {
             }
         }
 
-        if let Some(captures) = EFFECT_GAIN_GOLD.captures(tooltip) {
+        if let Some(captures) = crate::v2_0_0::re::EFFECT_GAIN_GOLD.captures(tooltip) {
             if let Some(gold_str) = captures.get(1) {
                 if let Ok(gold) = gold_str.as_str().parse::<u32>().map(DerivedValue::Constant) {
                     return Effect::GainGold(PlayerTarget::Player, gold);
                 }
             }
         }
-        if let Some(captures) = EFFECT_THIS_GAINS_MAX_AMMO.captures(tooltip) {
+        if let Some(captures) = crate::v2_0_0::re::EFFECT_THIS_GAINS_MAX_AMMO.captures(tooltip) {
             if let Some(amount_str) = captures.get(1) {
                 if let Ok(amount) = amount_str.as_str().parse::<u32>() {
                     return Effect::IncreaseMaxAmmo(
@@ -416,7 +406,7 @@ impl Effect {
                 }
             }
         }
-        if EFFECT_UPGRADE_RANDOM_PIGGLE.is_match(tooltip) {
+        if crate::v2_0_0::re::EFFECT_UPGRADE_RANDOM_PIGGLE.is_match(tooltip) {
             return Effect::Upgrade(
                 Tier::Bronze,
                 CardTarget(1, TargetCondition::NameIncludes("piggle".to_string())),

@@ -5,6 +5,7 @@ pub mod enchant;
 pub mod encounter;
 pub mod hero;
 pub mod pack_id;
+pub mod re;
 pub mod size;
 pub mod skill;
 pub mod tag;

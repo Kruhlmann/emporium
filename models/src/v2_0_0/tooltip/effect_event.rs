@@ -1,15 +1,4 @@
-use regex::Regex;
-
 use super::{CardTarget, DerivedValue, Effect, GlobalEvent, PlayerTarget, TargetCondition};
-
-lazy_static::lazy_static! {
-    pub static ref EFFECT_DEAL_DAMAGE: Regex = Regex::new(r"^deal (\d+) damage\.?$").unwrap();
-    pub static ref EFFECT_BURN: Regex = Regex::new(r"^burn (\d+)\.?$").unwrap();
-    pub static ref EFFECT_POISON: Regex = Regex::new(r"^poison (\d+)\.?$").unwrap();
-    pub static ref EFFECT_HEAL: Regex = Regex::new(r"^heal (\d+)\.?$").unwrap();
-    pub static ref EFFECT_SHIELD: Regex = Regex::new(r"^shield (\d+)\.?$").unwrap();
-    pub static ref EFFECT_REGEN: Regex = Regex::new(r"^gain (\d+) regen for the fight\.?$").unwrap();
-}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum EffectEvent {
@@ -45,14 +34,14 @@ impl std::fmt::Display for EffectEvent {
 impl EffectEvent {
     pub fn from_tooltip_str(tooltip: &str) -> EffectEvent {
         let tooltip = tooltip.trim();
-        if let Some(captures) = EFFECT_BURN.captures(tooltip) {
+        if let Some(captures) = crate::v2_0_0::re::EFFECT_BURN.captures(tooltip) {
             if let Some(burn_str) = captures.get(1) {
                 if let Ok(burn) = burn_str.as_str().parse::<u32>().map(DerivedValue::Constant) {
                     return EffectEvent::OnCooldown(Effect::Burn(PlayerTarget::Opponent, burn));
                 }
             }
         }
-        if let Some(captures) = EFFECT_POISON.captures(tooltip) {
+        if let Some(captures) = crate::v2_0_0::re::EFFECT_POISON.captures(tooltip) {
             if let Some(poison_str) = captures.get(1) {
                 if let Ok(poison) = poison_str
                     .as_str()
@@ -63,7 +52,7 @@ impl EffectEvent {
                 }
             }
         }
-        if let Some(captures) = EFFECT_REGEN.captures(tooltip) {
+        if let Some(captures) = crate::v2_0_0::re::EFFECT_REGEN.captures(tooltip) {
             if let Some(regen_str) = captures.get(1) {
                 if let Ok(regen) = regen_str.as_str().parse::<u32>() {
                     return EffectEvent::OnCooldown(Effect::Regen(
@@ -73,7 +62,7 @@ impl EffectEvent {
                 }
             }
         }
-        if let Some(captures) = EFFECT_SHIELD.captures(tooltip) {
+        if let Some(captures) = crate::v2_0_0::re::EFFECT_SHIELD.captures(tooltip) {
             if let Some(shield_str) = captures.get(1) {
                 if let Ok(shield) = shield_str.as_str().parse::<u32>() {
                     return EffectEvent::OnCooldown(Effect::Shield(
@@ -83,7 +72,7 @@ impl EffectEvent {
                 }
             }
         }
-        if let Some(captures) = EFFECT_HEAL.captures(tooltip) {
+        if let Some(captures) = crate::v2_0_0::re::EFFECT_HEAL.captures(tooltip) {
             if let Some(heal_str) = captures.get(1) {
                 if let Ok(heal) = heal_str.as_str().parse::<u32>().map(DerivedValue::Constant) {
                     return EffectEvent::OnCooldown(Effect::Heal(PlayerTarget::Player, heal));
@@ -91,7 +80,7 @@ impl EffectEvent {
             }
         }
 
-        if let Some(captures) = EFFECT_DEAL_DAMAGE.captures(tooltip) {
+        if let Some(captures) = crate::v2_0_0::re::EFFECT_DEAL_DAMAGE.captures(tooltip) {
             if let Some(damage_str) = captures.get(1) {
                 if let Ok(damage) = damage_str
                     .as_str()
