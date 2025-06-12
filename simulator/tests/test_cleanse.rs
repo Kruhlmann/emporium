@@ -1,6 +1,11 @@
 use rstest::rstest;
 use simulator::PlayerTemplate;
 
+/// Based on:
+/// Hotfix: June 6, 2025
+/// Heal Cleanse
+///   * Reduced to 5% of the amount Healed
+/// https://playthebazaar-cdn.azureedge.net/thebazaar/PatchNotes.html
 #[rstest]
 fn test_cleanse() -> Result<(), Box<dyn std::error::Error>> {
     let mut player = PlayerTemplate {

@@ -224,6 +224,17 @@ impl Simulation {
                     false => self.opponent.shield(shield_value),
                 }
             }
+            TaggedCombatEvent(owner, CombatEvent::Regen(player_target, regen, source_id)) => {
+                let todo = true; //TODO regen crit
+                let regen_value = match *regen {
+                    DerivedValue::Constant(s) => s,
+                    _ => self.derive_value(regen.clone(), source_id)? as u32,
+                };
+                match owner == player_target {
+                    true => self.player.regen(regen_value),
+                    false => self.opponent.regen(regen_value),
+                }
+            }
             TaggedCombatEvent(owner, CombatEvent::Heal(player_target, heal, source_id)) => {
                 let todo = true; //TODO heal crit
                 let heal_value = match *heal {

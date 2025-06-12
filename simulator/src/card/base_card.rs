@@ -202,6 +202,13 @@ impl Card {
                     self.id_for_simulation,
                 )]
             }
+            Effect::Regen(player_target, regen) => {
+                vec![CombatEvent::Regen(
+                    player_target,
+                    regen,
+                    self.id_for_simulation,
+                )]
+            }
             Effect::Shield(player_target, shield) => {
                 vec![CombatEvent::ApplyShield(
                     player_target,

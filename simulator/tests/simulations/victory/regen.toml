@@ -1,0 +1,18 @@
+
+[player]
+health = 100
+
+[[player.cards]]
+name = "Black Rose"
+tier = "Silver"
+
+[[player.cards]]
+name = "Fang"
+tier = "Bronze"
+
+[opponent]
+health = 100
+
+[[opponent.cards]]
+name = "Fang"
+tier = "Bronze"

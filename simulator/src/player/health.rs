@@ -13,10 +13,6 @@ impl PlayerHealth {
     pub fn fraction(&self) -> f32 {
         (self.0 as f64 / self.1 as f64) as f32
     }
-
-    pub fn increase_until_max(&mut self, extra_health: i64) {
-        self.0 = std::cmp::min(self.1 as i64, self.0 + extra_health)
-    }
 }
 
 impl std::fmt::Display for PlayerHealth {
@@ -29,7 +25,7 @@ impl std::ops::Add<i64> for PlayerHealth {
     type Output = Self;
 
     fn add(self, other: i64) -> Self::Output {
-        Self(self.0 + other, self.1)
+        Self(std::cmp::min(self.1 as i64, self.0 + other), self.1)
     }
 }
 
@@ -37,18 +33,18 @@ impl std::ops::Sub<i64> for PlayerHealth {
     type Output = Self;
 
     fn sub(self, other: i64) -> Self::Output {
-        Self(self.0 - other, self.1)
+        Self(std::cmp::min(self.1 as i64, self.0 - other), self.1)
     }
 }
 
 impl std::ops::AddAssign<i64> for PlayerHealth {
     fn add_assign(&mut self, other: i64) {
-        self.0 += other;
+        self.0 = std::cmp::min(self.1 as i64, self.0 + other);
     }
 }
 
 impl std::ops::SubAssign<i64> for PlayerHealth {
     fn sub_assign(&mut self, other: i64) {
-        self.0 -= other;
+        self.0 = std::cmp::min(self.1 as i64, self.0 - other);
     }
 }

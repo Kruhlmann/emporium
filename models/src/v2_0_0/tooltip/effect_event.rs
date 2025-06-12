@@ -8,6 +8,7 @@ lazy_static::lazy_static! {
     pub static ref EFFECT_POISON: Regex = Regex::new(r"^poison (\d+)\.?$").unwrap();
     pub static ref EFFECT_HEAL: Regex = Regex::new(r"^heal (\d+)\.?$").unwrap();
     pub static ref EFFECT_SHIELD: Regex = Regex::new(r"^shield (\d+)\.?$").unwrap();
+    pub static ref EFFECT_REGEN: Regex = Regex::new(r"^gain (\d+) regen for the fight\.?$").unwrap();
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -57,6 +58,16 @@ impl EffectEvent {
                     .map(DerivedValue::Constant)
                 {
                     return EffectEvent::OnCooldown(Effect::Poison(PlayerTarget::Opponent, poison));
+                }
+            }
+        }
+        if let Some(captures) = EFFECT_REGEN.captures(tooltip) {
+            if let Some(regen_str) = captures.get(1) {
+                if let Ok(regen) = regen_str.as_str().parse::<u32>() {
+                    return EffectEvent::OnCooldown(Effect::Regen(
+                        PlayerTarget::Player,
+                        DerivedValue::Constant(regen),
+                    ));
                 }
             }
         }

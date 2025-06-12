@@ -80,6 +80,7 @@ pub enum Effect {
     Burn(PlayerTarget, DerivedValue<u32>),
     Heal(PlayerTarget, DerivedValue<u32>),
     Shield(PlayerTarget, DerivedValue<u32>),
+    Regen(PlayerTarget, DerivedValue<u32>),
     Poison(PlayerTarget, DerivedValue<u32>),
     GainGold(PlayerTarget, DerivedValue<u32>),
     DealDamage(PlayerTarget, DerivedValue<u32>),
@@ -106,6 +107,7 @@ impl std::fmt::Display for Effect {
             Effect::Destroy(i) => write!(f, "Effect::Destroy({i})"),
             Effect::Burn(i, j) => write!(f, "Effect::Burn({i}, {j})"),
             Effect::Shield(i, j) => write!(f, "Effect::Shield({i}, {j})"),
+            Effect::Regen(i, j) => write!(f, "Effect::Regen({i}, {j})"),
             Effect::DealDamage(i, j) => write!(f, "Effect::DealDamage({i}, {j})"),
             Effect::Poison(i, j) => write!(f, "Effect::Poison({i}, {j})"),
             Effect::Heal(i, j) => write!(f, "Effect::Heal({i}, {j})"),
@@ -349,16 +351,6 @@ impl Effect {
                 CardTarget(1, TargetCondition::NameIncludes("piggle".to_string())),
             );
         }
-        // if let Some(captures) = EFFECT_UPGRADE_LOWER_TIER_TAGGED.captures(tooltip) {
-        //     if let Some(tag_str) = captures.get(1) {
-        //         if let Ok(tag) = Tag::from_str(tag_str.as_str()) {
-        //             return Effect::Upgrade(
-        //                 Tier::Bronze,
-        //                 CardTarget(1, TargetCondition::NameIncludes(" piggle".to_string())),
-        //             );
-        //         }
-        //     }
-        // }
         if tooltip == "deal damage equal to double this item's value." {
             return Effect::DealDamage(
                 PlayerTarget::Opponent,
